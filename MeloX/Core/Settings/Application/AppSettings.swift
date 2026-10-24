@@ -253,6 +253,8 @@ final class AppSettings {
         static let rememberNowPlayingPage = "rememberNowPlayingPage"
         static let rememberedNowPlayingPage = "rememberedNowPlayingPage"
         static let previousRestartsCurrentSong = "previousRestartsCurrentSong"
+        static let grayTrackUnblockEnabled = "grayTrackUnblockEnabled"
+        static let enabledUnblockSources = "enabledUnblockSources"
         static let startsHeartModeOnLaunch = "startsHeartModeOnLaunch"
         static let recognizesClipboardLinksOnLaunch =
             "recognizesClipboardLinksOnLaunch"
@@ -1217,6 +1219,21 @@ final class AppSettings {
         didSet { defaults.set(previousRestartsCurrentSong, forKey: Key.previousRestartsCurrentSong) }
     }
 
+    /// 灰色歌曲解锁总开关（默认开，与 kumone 一致）。
+    var grayTrackUnblockEnabled: Bool {
+        didSet { defaults.set(grayTrackUnblockEnabled, forKey: Key.grayTrackUnblockEnabled) }
+    }
+
+    /// 灰色解锁启用的第三方音源；空集合等于不解锁。
+    var enabledUnblockSources: Set<GrayTrackSource> {
+        didSet {
+            defaults.set(
+                enabledUnblockSources.map(\.rawValue).sorted(),
+                forKey: Key.enabledUnblockSources
+            )
+        }
+    }
+
     var startsHeartModeOnLaunch: Bool {
         didSet {
             defaults.set(
@@ -1775,6 +1792,12 @@ final class AppSettings {
         rememberNowPlayingPage = defaults.object(forKey: Key.rememberNowPlayingPage) as? Bool ?? false
         rememberedNowPlayingPage = defaults.string(forKey: Key.rememberedNowPlayingPage) ?? "artwork"
         previousRestartsCurrentSong = defaults.object(forKey: Key.previousRestartsCurrentSong) as? Bool ?? true
+        grayTrackUnblockEnabled = defaults.object(forKey: Key.grayTrackUnblockEnabled) as? Bool ?? true
+        if let rawSourceIDs = defaults.stringArray(forKey: Key.enabledUnblockSources) {
+            enabledUnblockSources = Set(rawSourceIDs.compactMap(GrayTrackSource.init))
+        } else {
+            enabledUnblockSources = Set(GrayTrackSource.allCases)
+        }
         startsHeartModeOnLaunch = defaults.object(
             forKey: Key.startsHeartModeOnLaunch
         ) as? Bool ?? Self.defaultStartsHeartModeOnLaunch
@@ -1974,6 +1997,8 @@ final class AppSettings {
             Self.defaultLyricsLiveActivityScrollPause
         equalizer.reset()
         autoMix.reset()
+        grayTrackUnblockEnabled = true
+        enabledUnblockSources = Set(GrayTrackSource.allCases)
         playerBackgroundStyle =
             Self.defaultPlayerBackgroundStyle
         playerBackgroundMotionIntensity =

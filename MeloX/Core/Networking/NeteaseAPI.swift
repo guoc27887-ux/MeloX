@@ -441,7 +441,8 @@ final class NeteaseAPI {
             url: url,
             bitrate: source.bitrate,
             format: source.format,
-            quality: source.level.flatMap(MusicQuality.init(apiLevel:))
+            quality: source.level.flatMap(MusicQuality.init(apiLevel:)),
+            isTrial: source.freeTrialInfo != nil
         )
     }
 

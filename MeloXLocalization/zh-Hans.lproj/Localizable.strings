@@ -2119,3 +2119,10 @@
 "ui.library.artists.search" = "搜索已关注的歌手";
 "ui.library.artists.empty" = "暂无已关注的歌手";
 "ui.library.error.favorite_artists" = "歌手列表加载失败：%@";
+
+"ui.settings.playback.gray_unblock" = "灰色歌曲解锁";
+"ui.settings.playback.gray_unblock.sources" = "解锁音源";
+"ui.settings.playback.gray_unblock.footer" = "无版权、下架或仅试听的歌曲，将从已启用的第三方音源匹配完整版播放；网易云本身可播的歌曲不受影响。";
+"ui.unblock.source.pyncmd" = "pyncmd";
+"ui.unblock.source.kugou" = "酷狗音乐";
+"ui.unblock.source.kuwo" = "酷我音乐";

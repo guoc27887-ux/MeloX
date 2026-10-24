@@ -95,6 +95,36 @@ struct PlaybackSettingsView: View {
                     "ui.settings.playback.behavior.footer"
                 )
             }
+
+            Section {
+                Toggle(
+                    "ui.settings.playback.gray_unblock",
+                    isOn: $settings.grayTrackUnblockEnabled
+                )
+
+                if settings.grayTrackUnblockEnabled {
+                    ForEach(GrayTrackSource.allCases, id: \.self) { source in
+                        Toggle(
+                            isOn: Binding(
+                                get: { settings.enabledUnblockSources.contains(source) },
+                                set: { isEnabled in
+                                    if isEnabled {
+                                        settings.enabledUnblockSources.insert(source)
+                                    } else {
+                                        settings.enabledUnblockSources.remove(source)
+                                    }
+                                }
+                            )
+                        ) {
+                            Text(verbatim: source.displayName)
+                        }
+                    }
+                }
+            } header: {
+                Text("ui.settings.playback.gray_unblock.sources")
+            } footer: {
+                Text("ui.settings.playback.gray_unblock.footer")
+            }
         }
         .navigationTitle("ui.settings.playback.title")
         .navigationBarTitleDisplayMode(.inline)

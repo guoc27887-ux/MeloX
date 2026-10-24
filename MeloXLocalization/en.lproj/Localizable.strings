@@ -2119,3 +2119,10 @@
 "ui.library.artists.search" = "Search followed artists";
 "ui.library.artists.empty" = "No Followed Artists";
 "ui.library.error.favorite_artists" = "Could not load followed artists: %@";
+
+"ui.settings.playback.gray_unblock" = "Gray Track Unblocking";
+"ui.settings.playback.gray_unblock.sources" = "Unblock Sources";
+"ui.settings.playback.gray_unblock.footer" = "Unavailable, removed, or trial-only tracks will be matched and played in full from enabled third-party sources; tracks playable on NetEase are unaffected.";
+"ui.unblock.source.pyncmd" = "pyncmd";
+"ui.unblock.source.kugou" = "Kugou Music";
+"ui.unblock.source.kuwo" = "Kuwo Music";
