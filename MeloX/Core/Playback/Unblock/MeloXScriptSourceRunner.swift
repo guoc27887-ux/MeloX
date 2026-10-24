@@ -523,7 +523,7 @@ final class MeloXScriptRuntime {
                 }
             })();
             """)
-            context.evaluateScript("globalThis.cerumusic = { request: function(url, options, callback) { return globalThis.lx.request(url, options, callback); }, utils: globalThis.lx.utils, env: globalThis.lx.env, version: globalThis.lx.version, currentScriptInfo: globalThis.lx.currentScriptInfo, NoticeCenter: function() {}, stopRequests: function() {} }; ")
+            context.evaluateScript("globalThis.cerumusic = { request: function(url, options, callback) { if (typeof options === 'function') { callback = options; options = {}; } if (typeof callback === 'function') { return globalThis.lx.request(url, options, callback); } return new Promise(function(resolve, reject) { globalThis.lx.request(url, options || {}, function(error, response) { if (error === null || typeof error === 'undefined') { resolve(response); } else if (error && error.message) { reject(new Error(error.message)); } else { reject(new Error('Request failed')); } }); }); }, utils: globalThis.lx.utils, env: globalThis.lx.env, version: globalThis.lx.version, currentScriptInfo: globalThis.lx.currentScriptInfo, NoticeCenter: function() {}, stopRequests: function() {} }; ")
             _ = context.evaluateScript(script)
             if context.exception == nil {
                 _ = context.evaluateScript("globalThis.__meloxPlugin = module.exports;")
