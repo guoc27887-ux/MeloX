@@ -31,11 +31,13 @@ struct ThirdPartySourceEditorSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Picker("ui.unblock.add.mode", selection: $mode) {
-                    Text("ui.unblock.add.manual").tag(Mode.manual)
-                    Text("ui.unblock.add.import").tag(Mode.paste)
+                Section {
+                    Picker("ui.unblock.add.mode", selection: $mode) {
+                        Text("ui.unblock.add.manual").tag(Mode.manual)
+                        Text("ui.unblock.add.import").tag(Mode.paste)
+                    }
+                    .pickerStyle(.segmented)
                 }
-                .pickerStyle(.segmented)
 
                 if mode == .manual {
                     Section {

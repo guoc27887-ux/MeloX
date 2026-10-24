@@ -146,9 +146,9 @@ struct PlaybackSettingsView: View {
             } footer: {
                 Text("ui.settings.playback.third_party_sources.footer")
             }
-            .sheet(isPresented: $showingSourceEditor) {
-                ThirdPartySourceEditorSheet()
-            }
+        }
+        .sheet(isPresented: $showingSourceEditor) {
+            ThirdPartySourceEditorSheet()
         }
         .navigationTitle("ui.settings.playback.title")
         .navigationBarTitleDisplayMode(.inline)
