@@ -15,7 +15,7 @@ struct NowPlayingProgressControl: View {
                 ),
                 in: 0...progressMaximum
             )
-            .sliderThumbVisibility(.hidden)
+            .compatSliderThumbHidden()
             .tint(.white)
             .accessibilityLabel("ui.player.progress")
             .accessibilityValue(

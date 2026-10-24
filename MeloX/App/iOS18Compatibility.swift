@@ -145,3 +145,17 @@ extension Color {
         )
     }
 }
+
+extension View {
+    /// Replacement for `.sliderThumbVisibility(.hidden)` (iOS 26 only):
+    /// on iOS 18 the modifier does not exist, so the slider keeps its
+    /// default thumb; on iOS 26 the thumb is hidden as before.
+    @ViewBuilder
+    func compatSliderThumbHidden() -> some View {
+        if #available(iOS 26, *) {
+            sliderThumbVisibility(.hidden)
+        } else {
+            self
+        }
+    }
+}
