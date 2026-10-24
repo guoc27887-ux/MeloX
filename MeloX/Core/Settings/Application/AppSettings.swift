@@ -253,8 +253,8 @@ final class AppSettings {
         static let rememberNowPlayingPage = "rememberNowPlayingPage"
         static let rememberedNowPlayingPage = "rememberedNowPlayingPage"
         static let previousRestartsCurrentSong = "previousRestartsCurrentSong"
-        static let grayTrackUnblockEnabled = "grayTrackUnblockEnabled"
-        static let enabledUnblockSources = "enabledUnblockSources"
+        static let thirdPartySourcesEnabled = "thirdPartySourcesEnabled"
+        static let thirdPartyPreferredQuality = "thirdPartyPreferredQuality"
         static let startsHeartModeOnLaunch = "startsHeartModeOnLaunch"
         static let recognizesClipboardLinksOnLaunch =
             "recognizesClipboardLinksOnLaunch"
@@ -1219,19 +1219,14 @@ final class AppSettings {
         didSet { defaults.set(previousRestartsCurrentSong, forKey: Key.previousRestartsCurrentSong) }
     }
 
-    /// 灰色歌曲解锁总开关（默认开，与 kumone 一致）。
-    var grayTrackUnblockEnabled: Bool {
-        didSet { defaults.set(grayTrackUnblockEnabled, forKey: Key.grayTrackUnblockEnabled) }
+    /// 第三方音源总开关（默认开；无用户导入的音源时解锁直接返回空，与关闭无异）。
+    var thirdPartySourcesEnabled: Bool {
+        didSet { defaults.set(thirdPartySourcesEnabled, forKey: Key.thirdPartySourcesEnabled) }
     }
 
-    /// 灰色解锁启用的第三方音源；空集合等于不解锁。
-    var enabledUnblockSources: Set<GrayTrackSource> {
-        didSet {
-            defaults.set(
-                enabledUnblockSources.map(\.rawValue).sorted(),
-                forKey: Key.enabledUnblockSources
-            )
-        }
+    /// 第三方音源优先音质（默认 320k；命中不到时按降级链自动下滑）。
+    var thirdPartyPreferredQuality: ThirdPartyAudioQuality {
+        didSet { defaults.set(thirdPartyPreferredQuality.rawValue, forKey: Key.thirdPartyPreferredQuality) }
     }
 
     var startsHeartModeOnLaunch: Bool {
@@ -1792,12 +1787,9 @@ final class AppSettings {
         rememberNowPlayingPage = defaults.object(forKey: Key.rememberNowPlayingPage) as? Bool ?? false
         rememberedNowPlayingPage = defaults.string(forKey: Key.rememberedNowPlayingPage) ?? "artwork"
         previousRestartsCurrentSong = defaults.object(forKey: Key.previousRestartsCurrentSong) as? Bool ?? true
-        grayTrackUnblockEnabled = defaults.object(forKey: Key.grayTrackUnblockEnabled) as? Bool ?? true
-        if let rawSourceIDs = defaults.stringArray(forKey: Key.enabledUnblockSources) {
-            enabledUnblockSources = Set(rawSourceIDs.compactMap(GrayTrackSource.init))
-        } else {
-            enabledUnblockSources = Set(GrayTrackSource.allCases)
-        }
+        thirdPartySourcesEnabled = defaults.object(forKey: Key.thirdPartySourcesEnabled) as? Bool ?? true
+        thirdPartyPreferredQuality = defaults.string(forKey: Key.thirdPartyPreferredQuality)
+            .flatMap { ThirdPartyAudioQuality(sourceValue: $0) } ?? .kb320
         startsHeartModeOnLaunch = defaults.object(
             forKey: Key.startsHeartModeOnLaunch
         ) as? Bool ?? Self.defaultStartsHeartModeOnLaunch
@@ -1997,8 +1989,8 @@ final class AppSettings {
             Self.defaultLyricsLiveActivityScrollPause
         equalizer.reset()
         autoMix.reset()
-        grayTrackUnblockEnabled = true
-        enabledUnblockSources = Set(GrayTrackSource.allCases)
+        thirdPartySourcesEnabled = true
+        thirdPartyPreferredQuality = .kb320
         playerBackgroundStyle =
             Self.defaultPlayerBackgroundStyle
         playerBackgroundMotionIntensity =

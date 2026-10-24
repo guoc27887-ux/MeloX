@@ -3,6 +3,8 @@ import SwiftUI
 struct PlaybackSettingsView: View {
     @Environment(AppSettings.self) private var settings
     @Environment(PlayerStore.self) private var player
+    @State private var sourceStore = ThirdPartySourceStore.shared
+    @State private var showingSourceEditor = false
 
     var body: some View {
         @Bindable var settings = settings
@@ -98,32 +100,54 @@ struct PlaybackSettingsView: View {
 
             Section {
                 Toggle(
-                    "ui.settings.playback.gray_unblock",
-                    isOn: $settings.grayTrackUnblockEnabled
+                    "ui.settings.playback.third_party_sources",
+                    isOn: $settings.thirdPartySourcesEnabled
                 )
 
-                if settings.grayTrackUnblockEnabled {
-                    ForEach(GrayTrackSource.allCases, id: \.self) { source in
-                        Toggle(
-                            isOn: Binding(
-                                get: { settings.enabledUnblockSources.contains(source) },
-                                set: { isEnabled in
-                                    if isEnabled {
-                                        settings.enabledUnblockSources.insert(source)
-                                    } else {
-                                        settings.enabledUnblockSources.remove(source)
-                                    }
-                                }
-                            )
-                        ) {
-                            Text(verbatim: source.displayName)
+                if settings.thirdPartySourcesEnabled {
+                    Picker(
+                        "ui.settings.playback.third_party_sources.quality",
+                        selection: $settings.thirdPartyPreferredQuality
+                    ) {
+                        ForEach(ThirdPartyAudioQuality.allCases) { quality in
+                            Text(quality.displayName).tag(quality)
                         }
+                    }
+
+                    if sourceStore.sources.isEmpty {
+                        Text("ui.settings.playback.third_party_sources.empty")
+                    } else {
+                        ForEach(sourceStore.sources) { source in
+                            HStack {
+                                Toggle(
+                                    isOn: Binding(
+                                        get: { source.enabled },
+                                        set: { sourceStore.updateEnabled(id: source.id, enabled: $0) }
+                                    )
+                                ) {
+                                    Text(verbatim: source.name)
+                                }
+                                Button(role: .destructive) {
+                                    sourceStore.removeSource(id: source.id)
+                                } label: {
+                                    Image(systemName: "trash")
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+
+                    Button("ui.settings.playback.third_party_sources.add") {
+                        showingSourceEditor = true
                     }
                 }
             } header: {
-                Text("ui.settings.playback.gray_unblock.sources")
+                Text("ui.settings.playback.third_party_sources")
             } footer: {
-                Text("ui.settings.playback.gray_unblock.footer")
+                Text("ui.settings.playback.third_party_sources.footer")
+            }
+            .sheet(isPresented: $showingSourceEditor) {
+                ThirdPartySourceEditorSheet()
             }
         }
         .navigationTitle("ui.settings.playback.title")

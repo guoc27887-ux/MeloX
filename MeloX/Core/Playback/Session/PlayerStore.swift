@@ -62,9 +62,6 @@ final class PlayerStore {
     private(set) var beatAnalysisStatus:
         PlaybackBeatAnalysisStatus = .idle
     private(set) var effectivePlaybackQuality: MusicQuality?
-    /// 本曲实际播放地址来自灰色解锁的第三方音源时为其展示名，否则为 nil。
-    /// 播放页后续可据此提示“第三方音源”字样；仅作状态记录，不改播放行为。
-    private(set) var unblockedSourceName: String?
     private(set) var sleepTimer: PlaybackSleepTimer
 
     var currentAudioSpectrum: PlaybackAudioSpectrumSnapshot {
@@ -1032,7 +1029,6 @@ final class PlayerStore {
         isLoading = true
         isPlaying = false
         isUsingDownloadedSource = false
-        unblockedSourceName = nil
         currentPlaybackSource = nil
         effectivePlaybackQuality = nil
         currentLoadShouldAutoplay = autoplay
@@ -1055,7 +1051,6 @@ final class PlayerStore {
 
         do {
             var source: PlaybackSource
-            var unblockedName: String?
             if let downloadedSource = downloads.localPlaybackSource(songID: song.id) {
                 source = downloadedSource
                 isUsingDownloadedSource = true
@@ -1070,14 +1065,16 @@ final class PlayerStore {
                     // level while song details resolve in parallel.
                     source = try await api.playbackSource(id: song.id)
                 }
-                // 仅试听救援：网易云只给了试听片段时，尝试从第三方音源
-                // 解析完整版；解析失败则照旧播放试听片段，行为不降级。
-                // 已下载曲目与播客节目不走解锁。
-                if !song.isPodcastProgram, settings.grayTrackUnblockEnabled,
+                // 仅试听救援：网易云只给了试听片段时，尝试从用户导入的
+                // 第三方音源解析完整版；解析失败则照旧播放试听片段，行为不降级。
+                // 已下载曲目与播客节目不走解锁；无导入音源时直接返回空。
+                if !song.isPodcastProgram, settings.thirdPartySourcesEnabled,
                    source.isTrial,
-                   let unblocked = await GrayTrackUnblockService.resolve(
-                     song: song,
-                     enabledSources: settings.enabledUnblockSources
+                   let unblocked = await ThirdPartyUnblockService.resolve(
+                     name: song.name,
+                     artists: song.artists.map(\.name).joined(separator: "/"),
+                     neteaseID: song.id,
+                     preferredQuality: settings.thirdPartyPreferredQuality
                    )
                 {
                     source = PlaybackSource(
@@ -1086,13 +1083,11 @@ final class PlayerStore {
                         format: "mp3",
                         quality: nil
                     )
-                    unblockedName = unblocked.source.displayName
                 }
             }
             guard generation == loadGeneration, currentSong?.id == song.id else { return }
             isResolvingSource = false
             currentPlaybackSource = source
-            unblockedSourceName = unblockedName
             effectivePlaybackQuality = source.quality
             let shouldAutoplay = currentLoadShouldAutoplay
             let resolvedStartPosition = estimatedProgress()
@@ -1105,15 +1100,17 @@ final class PlayerStore {
             return
         } catch {
             guard generation == loadGeneration, currentSong?.id == song.id else { return }
-            // 无源救援：网易云拿不到可播地址（无版权/下架）时，尝试从第
-            // 三方音源解析；解析成功则直接播放，失败才落入原有报错。
+            // 无源救援：网易云拿不到可播地址（无版权/下架）时，尝试从用户
+            // 导入的第三方音源解析；解析成功则直接播放，失败才落入原有报错。
             // 已下载曲目不会走到这里（本地文件优先），播客节目不走解锁。
-            if !song.isPodcastProgram, settings.grayTrackUnblockEnabled,
+            if !song.isPodcastProgram, settings.thirdPartySourcesEnabled,
                let apiError = error as? APIError,
                case .noPlayableSource = apiError,
-               let unblocked = await GrayTrackUnblockService.resolve(
-                 song: song,
-                 enabledSources: settings.enabledUnblockSources
+               let unblocked = await ThirdPartyUnblockService.resolve(
+                 name: song.name,
+                 artists: song.artists.map(\.name).joined(separator: "/"),
+                 neteaseID: song.id,
+                 preferredQuality: settings.thirdPartyPreferredQuality
                )
             {
                 guard generation == loadGeneration, currentSong?.id == song.id else { return }
@@ -1125,7 +1122,6 @@ final class PlayerStore {
                     quality: nil
                 )
                 currentPlaybackSource = source
-                unblockedSourceName = unblocked.source.displayName
                 effectivePlaybackQuality = nil
                 let shouldAutoplay = currentLoadShouldAutoplay
                 let resolvedStartPosition = estimatedProgress()
