@@ -271,7 +271,7 @@ struct AlbumDetailView: View {
             }
             .accessibilityLabel("ui.common.more")
         }
-        .sharedBackgroundVisibility(.visible)
+        .compatSharedBackgroundVisibility()
     }
 
     @ToolbarContentBuilder

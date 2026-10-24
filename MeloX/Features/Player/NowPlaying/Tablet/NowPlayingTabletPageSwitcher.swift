@@ -16,7 +16,7 @@ struct NowPlayingTabletPageSwitcher: View {
             switchButton(.queue, systemImage: "list.bullet", title: "ui.player.queue")
         }
         .padding(4)
-        .glassEffect(.clear.interactive(), in: .capsule)
+        .compatGlassEffect(in: .capsule)
     }
 
     private func switchButton(

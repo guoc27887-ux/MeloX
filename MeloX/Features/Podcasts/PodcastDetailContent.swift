@@ -194,14 +194,14 @@ private struct PodcastPrimaryActions: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        GlassEffectContainer(spacing: 14) {
+        CompatGlassEffectContainer(spacing: 14) {
             HStack(spacing: 14) {
                 Button(action: onPlay) {
                     Label("ui.common.play", systemImage: "play.fill")
                         .font(.title3.weight(.bold))
                         .frame(minWidth: 116)
                 }
-                .buttonStyle(.glassProminent)
+                .compatGlassButtonStyle(prominent: true)
                 .buttonBorderShape(.capsule)
                 .controlSize(.large)
                 .tint(primaryActionBackground)
@@ -225,7 +225,7 @@ private struct PodcastPrimaryActions: View {
                     }
                     .frame(width: 30, height: 30)
                 }
-                .buttonStyle(.glass)
+                .compatGlassButtonStyle()
                 .buttonBorderShape(.circle)
                 .controlSize(.large)
                 .disabled(isSubscribing)

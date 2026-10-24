@@ -144,10 +144,9 @@ private struct SkylineCentralLyricText: View, Animatable {
             fontWeight: settings.lyricsFontWeight,
             alignment: .center,
             fontScale: fontScale,
-            primaryColor: .white.mix(
+            primaryColor: .white.compatMix(
                 with: accentColor,
-                by: Double(focus),
-                in: .perceptual
+                by: Double(focus)
             ),
             showsTranslation: false,
             showsRomanization: false,

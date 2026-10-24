@@ -2,11 +2,11 @@ import SwiftUI
 
 struct MiniPlayerView: View {
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
-    @Environment(\.tabViewBottomAccessoryPlacement) private var placement
     @Environment(PlayerStore.self) private var player
 
     let artworkTransitionID: String
     let artworkTransitionNamespace: Namespace.ID
+    let isInline: Bool
     let onExpand: () -> Void
 
     var body: some View {
@@ -101,10 +101,6 @@ struct MiniPlayerView: View {
         }
     }
 
-    private var isInline: Bool {
-        placement == .inline
-    }
-
     private var artworkSize: CGFloat {
         isInline ? 30 : 40
     }
@@ -119,5 +115,19 @@ struct MiniPlayerView: View {
                     Task { await player.previous() }
                 }
             }
+    }
+}
+
+/// Reads the iOS 26 tab-view bottom-accessory placement and reports it as the
+/// compact (`inline`) flag MiniPlayerView lays out from. The environment key
+/// itself is iOS 26 only, so the read lives in this gated view; on iOS 18 the
+/// call site passes `isInline: true` (the inset mini player is always compact).
+@available(iOS 26, *)
+struct MiniPlayerPlacementReader<Content: View>: View {
+    @Environment(\.tabViewBottomAccessoryPlacement) private var placement
+    @ViewBuilder let content: (Bool) -> Content
+
+    var body: some View {
+        content(placement == .inline)
     }
 }

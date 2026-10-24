@@ -377,7 +377,7 @@ struct PlaylistDetailView: View {
             }
             .accessibilityLabel("ui.common.more")
         }
-        .sharedBackgroundVisibility(.visible)
+        .compatSharedBackgroundVisibility()
     }
 
     @ToolbarContentBuilder

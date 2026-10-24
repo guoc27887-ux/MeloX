@@ -338,26 +338,46 @@ struct ContentView: View {
                     ) {
                         miniPlayer
                     }
-            } else {
+            } else if #available(iOS 26, *) {
                 tabs
                     .tabViewBottomAccessory {
                         if !isTabViewBottomAccessorySuppressed {
                             miniPlayer
                         }
                     }
+            } else {
+                // iOS 18: the mini player lives in the per-tab bottom inset
+                // (see tabs); no bottom accessory exists here.
+                tabs
             }
         } else {
             tabs
         }
     }
 
+    @ViewBuilder
     private var miniPlayer: some View {
-        MiniPlayerView(
-            artworkTransitionID: playerTransitionID,
-            artworkTransitionNamespace:
-                playerTransitionNamespace
-        ) {
-            playerPresentation = .nowPlaying
+        if #available(iOS 26, *) {
+            MiniPlayerPlacementReader { isInline in
+                MiniPlayerView(
+                    artworkTransitionID: playerTransitionID,
+                    artworkTransitionNamespace:
+                        playerTransitionNamespace,
+                    isInline: isInline
+                ) {
+                    playerPresentation = .nowPlaying
+                }
+            }
+        } else {
+            // iOS 18: the inset mini player is always compact.
+            MiniPlayerView(
+                artworkTransitionID: playerTransitionID,
+                artworkTransitionNamespace:
+                    playerTransitionNamespace,
+                isInline: true
+            ) {
+                playerPresentation = .nowPlaying
+            }
         }
     }
 
@@ -386,10 +406,15 @@ struct ContentView: View {
                                 in: musicNavigationNamespace
                             )
                     }
+                    .compatBottomMiniPlayerInset(
+                        isSuppressed: isTabViewBottomAccessorySuppressed
+                    ) {
+                        miniPlayer
+                    }
                 }
             }
         }
-        .tabBarMinimizeBehavior(.onScrollDown)
+        .compatTabBarMinimizeOnScrollDown()
         .environment(\.musicNavigationNamespace, musicNavigationNamespace)
     }
 

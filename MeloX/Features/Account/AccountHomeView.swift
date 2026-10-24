@@ -98,7 +98,7 @@ struct AccountHomeView: View {
             }
             .accessibilityLabel("ui.common.more")
         }
-        .sharedBackgroundVisibility(.visible)
+        .compatSharedBackgroundVisibility()
     }
 
     private func loadArtworkAssets() async {

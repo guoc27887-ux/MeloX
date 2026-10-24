@@ -86,7 +86,7 @@ struct NowPlayingTabletView: View {
                         .frame(width: 44, height: 44)
                 }
                 .buttonStyle(.plain)
-                .glassEffect(.clear.interactive(), in: .circle)
+                .compatGlassEffect(in: .circle)
                 .accessibilityLabel("ui.player.collapse")
 
                 Spacer()
@@ -95,7 +95,7 @@ struct NowPlayingTabletView: View {
 
             Spacer(minLength: 0)
 
-            GlassEffectContainer(spacing: 12) {
+            CompatGlassEffectContainer(spacing: 12) {
                 HStack(spacing: 12) {
                     FloatingLyricsButton()
 
@@ -114,7 +114,7 @@ struct NowPlayingTabletView: View {
                                     .frame(width: 44, height: 44)
                             }
                             .buttonStyle(.plain)
-                            .glassEffect(.clear.interactive(), in: .circle)
+                            .compatGlassEffect(in: .circle)
                             .accessibilityLabel(
                                 settings.lyricsStyle == .textPV
                                     ? L10n.string("ui.settings.lyrics.style.text_pv")

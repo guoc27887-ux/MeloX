@@ -321,7 +321,7 @@ struct MusicCollectionPrimaryActions: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        GlassEffectContainer(spacing: 14) {
+        CompatGlassEffectContainer(spacing: 14) {
             HStack(spacing: 14) {
                 Button {
                     Task {
@@ -339,7 +339,7 @@ struct MusicCollectionPrimaryActions: View {
                         .font(.title2.weight(.semibold))
                         .frame(width: 30, height: 30)
                 }
-                .buttonStyle(.glass)
+                .compatGlassButtonStyle()
                 .buttonBorderShape(.circle)
                 .controlSize(.large)
                 .disabled(tracks.isEmpty || isPreparingPlayback)
@@ -370,7 +370,7 @@ struct MusicCollectionPrimaryActions: View {
                     .font(.title3.weight(.bold))
                     .frame(minWidth: 116)
                 }
-                .buttonStyle(.glassProminent)
+                .compatGlassButtonStyle(prominent: true)
                 .buttonBorderShape(.capsule)
                 .controlSize(.large)
                 .tint(primaryActionBackground)
@@ -384,7 +384,7 @@ struct MusicCollectionPrimaryActions: View {
                     .font(.title2.weight(.semibold))
                     .frame(width: 30, height: 30)
                 }
-                .buttonStyle(.glass)
+                .compatGlassButtonStyle()
                 .buttonBorderShape(.circle)
                 .controlSize(.large)
                 .accessibilityLabel(
