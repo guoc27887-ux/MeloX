@@ -27,9 +27,9 @@ struct ExploreCategoryPicker: View {
 
     private func categoryTitle(for category: String) -> String {
         switch category {
-        case "推荐歌单": "推荐"
-        case "精品歌单": "精品"
-        default: category
+        case "推荐歌单": L10n.string("ui.navigation.recommended")
+        case "精品歌单": L10n.string("ui.category.featured_short")
+        default: localizedPlaylistCategory(category)
         }
     }
 }
@@ -85,7 +85,13 @@ struct ExploreFeaturedPlaylistView: View {
         }
         .buttonStyle(.plain)
         .musicMatchedTransitionSource(for: MusicRoute.playlist(playlist))
-        .accessibilityLabel("\(badge)，\(playlist.name)")
+        .accessibilityLabel(
+            L10n.format(
+                "ui.accessibility.badge_and_title",
+                badge,
+                playlist.name
+            )
+        )
     }
 }
 
@@ -113,7 +119,7 @@ struct ExplorePlaylistCardView: View {
                 .foregroundStyle(.primary)
                 .lineLimit(2)
 
-            Text(playlist.updateFrequency ?? playlist.creator?.nickname ?? "\(playlist.trackCount) 首歌曲")
+            Text(playlist.updateFrequency ?? playlist.creator?.nickname ?? L10n.format("ui.common.song_count", playlist.trackCount))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
@@ -124,19 +130,9 @@ struct ExplorePlaylistCardView: View {
 }
 
 private func playCountText(_ count: Int) -> String {
-    switch count {
-    case 100_000_000...:
-        return "\(formattedCount(Double(count) / 100_000_000))亿"
-    case 10_000...:
-        return "\(formattedCount(Double(count) / 10_000))万"
-    default:
-        return "\(count)"
-    }
-}
-
-private func formattedCount(_ value: Double) -> String {
-    if value >= 10 || value.rounded() == value {
-        return String(Int(value.rounded()))
-    }
-    return value.formatted(.number.precision(.fractionLength(1)))
+    count.formatted(
+        .number
+            .notation(.compactName)
+            .locale(L10n.locale)
+    )
 }

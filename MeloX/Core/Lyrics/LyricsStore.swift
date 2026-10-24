@@ -6,38 +6,51 @@ import Observation
 final class LyricsStore {
     private(set) var songID: Int?
     private(set) var lyrics: [LyricLine] = []
+    private(set) var source: LyricSource?
     private(set) var isLoading = false
     private(set) var errorMessage: String?
 
     @ObservationIgnored
-    private let api: NeteaseAPI
+    private let service: LyricsService
 
     @ObservationIgnored
     private var loadGeneration = 0
 
-    init(api: NeteaseAPI) {
-        self.api = api
+    init(service: LyricsService) {
+        self.service = service
     }
 
-    func load(for songID: Int?) async {
+    func load(for song: Song?) async {
         loadGeneration += 1
         let generation = loadGeneration
 
-        self.songID = songID
+        songID = song?.id
         lyrics = []
+        source = nil
         errorMessage = nil
-        isLoading = songID != nil
+        isLoading = song != nil
 
-        guard let songID else { return }
+        guard let song else { return }
 
         do {
-            let loadedLyrics = try await api.lyrics(id: songID)
+            let loaded = try await service.load(
+                for: LyricsSongMetadata(song: song)
+            ) { [weak self] update in
+                guard let self, generation == self.loadGeneration else {
+                    return
+                }
+                self.lyrics = update.lines
+                self.source = update.source
+                self.errorMessage = nil
+                self.isLoading = false
+            }
             try Task.checkCancellation()
             guard generation == loadGeneration else { return }
 
-            lyrics = loadedLyrics
-            errorMessage = loadedLyrics.isEmpty
-                ? "当前歌曲暂无滚动歌词。"
+            lyrics = loaded.lines
+            source = loaded.source
+            errorMessage = loaded.lines.isEmpty
+                ? L10n.string("ui.error.lyrics.unavailable")
                 : nil
             isLoading = false
         } catch is CancellationError {
@@ -47,5 +60,13 @@ final class LyricsStore {
             errorMessage = error.localizedDescription
             isLoading = false
         }
+    }
+
+    func fetch(for song: Song) async throws -> [LyricLine] {
+        let resolved = try await service.load(
+            for: LyricsSongMetadata(song: song),
+            onUpdate: { _ in }
+        )
+        return resolved.lines
     }
 }

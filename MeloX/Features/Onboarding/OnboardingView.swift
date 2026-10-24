@@ -57,7 +57,7 @@ struct OnboardingView: View {
                     ProjectLicensesView()
                         .toolbar {
                             ToolbarItem(placement: .cancellationAction) {
-                                Button("完成") {
+                                Button("ui.common.done") {
                                     presentedSheet = nil
                                 }
                             }
@@ -72,11 +72,11 @@ struct OnboardingView: View {
     }
 }
 
-#Preview("欢迎") {
+#Preview("Welcome") {
     OnboardingPreview(startsAtAccount: false)
 }
 
-#Preview("网易云登录") {
+#Preview("NetEase Sign In") {
     OnboardingPreview(startsAtAccount: true)
 }
 

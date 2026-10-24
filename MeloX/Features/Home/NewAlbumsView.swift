@@ -11,7 +11,7 @@ struct NewAlbumsView: View {
         Group {
             switch phase {
             case .loading:
-                ProgressView("正在载入新碟")
+                ProgressView("ui.albums.new.loading")
             case .failed(let message):
                 ConnectionUnavailableView(message: message) {
                     reloadToken += 1
@@ -49,7 +49,7 @@ struct NewAlbumsView: View {
                 }
             }
         }
-        .navigationTitle("新碟上架")
+        .navigationTitle("ui.albums.new.title")
         .task(id: reloadToken) {
             guard phase != .loaded else { return }
             await load()

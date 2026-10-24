@@ -2,12 +2,16 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct CloudMusicView: View {
+    let searchQuery: String
+
     @Environment(CloudMusicStore.self) private var cloud
     @Environment(PlayerStore.self) private var player
     @Environment(AppSettings.self) private var settings
 
     @State private var showsFileImporter = false
     @State private var pendingDeletion: CloudSong?
+    @State private var searchReloadToken = 0
+    @State private var searchPreparationID: UUID?
 
     var body: some View {
         content
@@ -20,11 +24,15 @@ struct CloudMusicView: View {
                         if cloud.isUploading {
                             ProgressView()
                         } else {
-                            Label("上传音乐", systemImage: "square.and.arrow.up")
+                            Label("ui.cloud.upload_music", systemImage: "square.and.arrow.up")
                         }
                     }
                     .disabled(cloud.isUploading)
-                    .accessibilityLabel(cloud.isUploading ? "正在上传音乐" : "上传音乐")
+                    .accessibilityLabel(
+                        cloud.isUploading
+                            ? L10n.string("ui.cloud.uploading_music")
+                            : L10n.string("ui.cloud.upload_music")
+                    )
                 }
             }
             .fileImporter(
@@ -41,7 +49,7 @@ struct CloudMusicView: View {
                 }
             }
             .confirmationDialog(
-                "从音乐云盘删除？",
+                "ui.cloud.delete.confirmation",
                 isPresented: Binding(
                     get: { pendingDeletion != nil },
                     set: { isPresented in
@@ -51,15 +59,18 @@ struct CloudMusicView: View {
                 titleVisibility: .visible,
                 presenting: pendingDeletion
             ) { item in
-                Button("删除“\(item.songName)”", role: .destructive) {
+                Button(
+                    L10n.format("ui.cloud.delete_named", item.songName),
+                    role: .destructive
+                ) {
                     Task { await cloud.delete(item) }
                 }
-                Button("取消", role: .cancel) {}
+                Button("ui.common.cancel", role: .cancel) {}
             } message: { _ in
-                Text("此操作会同时从网易云音乐账号中删除该云盘歌曲。")
+                Text("ui.cloud.delete.message")
             }
             .alert(
-                "音乐云盘操作失败",
+                "ui.cloud.error.title",
                 isPresented: Binding(
                     get: { cloud.errorMessage != nil },
                     set: { isPresented in
@@ -67,11 +78,11 @@ struct CloudMusicView: View {
                     }
                 )
             ) {
-                Button("好", role: .cancel) {
+                Button("ui.common.ok", role: .cancel) {
                     cloud.clearError()
                 }
             } message: {
-                Text(cloud.errorMessage ?? "未知错误")
+                Text(cloud.errorMessage ?? L10n.string("ui.common.unknown_error"))
             }
             .task(id: settings.cookie) {
                 await cloud.refresh()
@@ -82,7 +93,7 @@ struct CloudMusicView: View {
     private var content: some View {
         switch cloud.phase {
         case .loading where cloud.items.isEmpty:
-            ProgressView("正在读取音乐云盘")
+            ProgressView("ui.cloud.loading")
         case .failed(let message) where cloud.items.isEmpty:
             ConnectionUnavailableView(message: message) {
                 Task { await cloud.refresh(force: true) }
@@ -97,30 +108,42 @@ struct CloudMusicView: View {
             if cloud.isUploading {
                 HStack(spacing: 12) {
                     ProgressView()
-                    Text("正在上传音乐，请保持 MeloX 在前台")
+                    Text("ui.cloud.uploading_foreground")
                         .foregroundStyle(.secondary)
                 }
             }
 
-            if !cloud.items.isEmpty {
+            if !displayedItems.isEmpty {
                 Section {
                     Button {
-                        Task { await player.playAll(cloud.songs) }
+                        Task { await player.playAll(displayedSongs) }
                     } label: {
-                        Label("播放全部", systemImage: "play.fill")
+                        Label(
+                            isSearching
+                                ? L10n.string("ui.common.play_search_results")
+                                : L10n.string("ui.common.play_all"),
+                            systemImage: "play.fill"
+                        )
                     }
                 } header: {
-                    if let quota = cloud.quotaDescription {
+                    if isSearching {
+                        Text(L10n.format("ui.common.search_result_count", displayedItems.count))
+                    } else if let quota = cloud.quotaDescription {
                         Text(quota)
                     } else {
-                        Text("共 \(cloud.totalCount) 首歌曲")
+                        Text(L10n.format("ui.cloud.total_song_count", cloud.totalCount))
                     }
                 }
             }
 
-            ForEach(cloud.items) { item in
+            ForEach(displayedItems) { item in
                 Button {
-                    Task { await player.play(item.simpleSong, in: cloud.songs) }
+                    Task {
+                        await player.play(
+                            item.simpleSong,
+                            in: displayedSongs
+                        )
+                    }
                 } label: {
                     TrackRowView(song: item.simpleSong, showsArtwork: true)
                 }
@@ -130,7 +153,7 @@ struct CloudMusicView: View {
                     Button(role: .destructive) {
                         pendingDeletion = item
                     } label: {
-                        Label("从云盘删除", systemImage: "trash")
+                        Label("ui.cloud.delete", systemImage: "trash")
                     }
                 }
                 .task {
@@ -138,31 +161,152 @@ struct CloudMusicView: View {
                 }
             }
 
-            if cloud.isLoadingMore {
-                HStack {
-                    Spacer()
-                    ProgressView("正在加载更多")
-                    Spacer()
-                }
-            }
+            paginationFooter
         }
         .listStyle(.plain)
         .refreshable {
             await cloud.refresh(force: true)
+            if isSearching {
+                await prepareSearchResults(debounced: false)
+            }
         }
         .overlay {
-            if cloud.items.isEmpty, !cloud.isUploading {
-                ContentUnavailableView {
-                    Label("音乐云盘是空的", systemImage: "externaldrive")
-                } description: {
-                    Text("上传本地音频后，可在所有网易云音乐客户端中播放。")
-                } actions: {
-                    Button("上传音乐") {
-                        showsFileImporter = true
+            if displayedItems.isEmpty,
+               !cloud.isUploading,
+               !isPreparingSearchResults,
+               !hasSearchLoadFailure {
+                if isSearching {
+                    ContentUnavailableView.search(
+                        text: normalizedSearchQuery
+                    )
+                } else {
+                    ContentUnavailableView {
+                        Label(
+                            "ui.cloud.empty",
+                            systemImage: "externaldrive"
+                        )
+                    } description: {
+                        Text(
+                            "ui.cloud.empty.message"
+                        )
+                    } actions: {
+                        Button("ui.cloud.upload_music") {
+                            showsFileImporter = true
+                        }
+                        .buttonStyle(.borderedProminent)
                     }
-                    .buttonStyle(.borderedProminent)
                 }
             }
         }
+        .task(
+            id: CloudMusicSearchRequest(
+                query: normalizedSearchQuery,
+                reloadToken: searchReloadToken
+            )
+        ) {
+            await prepareSearchResults(debounced: true)
+        }
     }
+
+    private var normalizedSearchQuery: String {
+        normalizedLibrarySearchQuery(searchQuery)
+    }
+
+    private var isSearching: Bool {
+        !normalizedSearchQuery.isEmpty
+    }
+
+    private var displayedItems: [CloudSong] {
+        filterCloudSongs(cloud.items, query: normalizedSearchQuery)
+    }
+
+    private var displayedSongs: [Song] {
+        displayedItems.map(\.simpleSong)
+    }
+
+    private var isPreparingSearchResults: Bool {
+        searchPreparationID != nil
+    }
+
+    private var hasSearchLoadFailure: Bool {
+        isSearching && cloud.loadMoreError != nil && cloud.hasMore
+    }
+
+    @ViewBuilder
+    private var paginationFooter: some View {
+        if isSearching, isPreparingSearchResults {
+            HStack(spacing: 8) {
+                ProgressView()
+                Text("ui.cloud.searching_all")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 18)
+            .listRowSeparator(.hidden)
+        } else if let failureMessage = cloud.loadMoreError,
+                  cloud.hasMore {
+            VStack(spacing: 8) {
+                Text(failureMessage)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+
+                Button(
+                    isSearching
+                        ? L10n.string("ui.library.search_again")
+                        : L10n.string("ui.common.reload")
+                ) {
+                    if isSearching {
+                        searchReloadToken += 1
+                    } else {
+                        Task { await cloud.loadMore() }
+                    }
+                }
+                .buttonStyle(.bordered)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 18)
+            .listRowSeparator(.hidden)
+        } else if !isSearching, cloud.isLoadingMore {
+            HStack {
+                Spacer()
+                ProgressView("ui.common.loading_more")
+                Spacer()
+            }
+        }
+    }
+
+    private func prepareSearchResults(debounced: Bool) async {
+        guard isSearching else {
+            searchPreparationID = nil
+            return
+        }
+
+        guard cloud.hasMore else { return }
+
+        let preparationID = UUID()
+        searchPreparationID = preparationID
+        defer {
+            if searchPreparationID == preparationID {
+                searchPreparationID = nil
+            }
+        }
+
+        if debounced {
+            do {
+                try await Task.sleep(for: .milliseconds(300))
+            } catch {
+                return
+            }
+        }
+
+        guard !Task.isCancelled else { return }
+        await cloud.loadRemaining()
+    }
+}
+
+private struct CloudMusicSearchRequest: Hashable {
+    let query: String
+    let reloadToken: Int
 }

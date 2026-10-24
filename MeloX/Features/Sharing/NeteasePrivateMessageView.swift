@@ -17,11 +17,11 @@ struct NeteasePrivateMessageView: View {
 
     var body: some View {
         List {
-            Section("私信内容") {
+            Section("ui.messages.private_message_content") {
                 NeteaseShareResourcePreview(resource: resource)
 
                 TextField(
-                    "附言（选填）",
+                    "ui.messages.optional_note",
                     text: $message,
                     axis: .vertical
                 )
@@ -32,20 +32,20 @@ struct NeteasePrivateMessageView: View {
                 contactsContent
             } header: {
                 HStack {
-                    Text("收件人")
+                    Text("ui.messages.recipients")
                     Spacer()
                     if !selectedContactIDs.isEmpty {
-                        Text("已选择 \(selectedContactIDs.count) 人")
+                        Text(L10n.format("ui.messages.selected_recipient_count", selectedContactIDs.count))
                     }
                 }
             }
         }
-        .navigationTitle("网易云私信")
+        .navigationTitle("ui.sharing.netease_private_message")
         .navigationBarTitleDisplayMode(.inline)
-        .searchable(text: $searchQuery, prompt: "搜索关注的人")
+        .searchable(text: $searchQuery, prompt: "ui.messages.search_following")
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
-                Button("取消") {
+                Button("ui.common.cancel") {
                     dismiss()
                 }
                 .disabled(isSending)
@@ -58,7 +58,7 @@ struct NeteasePrivateMessageView: View {
                     if isSending {
                         ProgressView()
                     } else {
-                        Text("发送")
+                        Text("ui.common.send")
                     }
                 }
                 .disabled(selectedContactIDs.isEmpty || isSending)
@@ -69,17 +69,17 @@ struct NeteasePrivateMessageView: View {
             await loadContacts()
         }
         .alert(
-            "私信发送失败",
+            "ui.messages.private_send_failed",
             isPresented: Binding(
                 get: { errorMessage != nil },
                 set: { if !$0 { errorMessage = nil } }
             )
         ) {
-            Button("好", role: .cancel) {
+            Button("ui.common.ok", role: .cancel) {
                 errorMessage = nil
             }
         } message: {
-            Text(errorMessage ?? "网易云音乐未完成操作。")
+            Text(errorMessage ?? L10n.string("ui.error.netease_operation_incomplete"))
         }
     }
 
@@ -89,17 +89,17 @@ struct NeteasePrivateMessageView: View {
         case .loading:
             HStack {
                 Spacer()
-                ProgressView("正在读取联系人")
+                ProgressView("ui.messages.loading_contacts")
                 Spacer()
             }
             .listRowBackground(Color.clear)
         case .failed(let message):
             ContentUnavailableView {
-                Label("无法读取联系人", systemImage: "person.crop.circle.badge.exclamationmark")
+                Label("ui.messages.contacts_load_failed", systemImage: "person.crop.circle.badge.exclamationmark")
             } description: {
                 Text(message)
             } actions: {
-                Button("重试") {
+                Button("ui.common.retry") {
                     Task { await loadContacts() }
                 }
             }
@@ -107,7 +107,9 @@ struct NeteasePrivateMessageView: View {
         case .loaded:
             if filteredContacts.isEmpty {
                 ContentUnavailableView(
-                    searchQuery.isEmpty ? "暂无可用联系人" : "没有找到联系人",
+                    searchQuery.isEmpty
+                        ? L10n.string("ui.messages.no_contacts")
+                        : L10n.string("ui.messages.contacts_not_found"),
                     systemImage: searchQuery.isEmpty
                         ? "person.2.slash"
                         : "magnifyingglass"

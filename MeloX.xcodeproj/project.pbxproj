@@ -8,19 +8,92 @@
 
 /* Begin PBXBuildFile section */
 		A1D0AD000000000000000001 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = A1D0AD000000000000000003 /* GRDB */; };
+		B1000000000000000000000B /* MeloX Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = B10000000000000000000002 /* MeloX Watch App.app */; platformFilter = ios; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		B10000000000000000000010 /* QRCode in Frameworks */ = {isa = PBXBuildFile; productRef = B10000000000000000000012 /* QRCode */; };
+		C20000000000000000000001 /* NukeUI in Frameworks */ = {isa = PBXBuildFile; productRef = C20000000000000000000003 /* NukeUI */; };
+		CDCDC02B263846DD93AAF886 /* MeloXLyricsWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 2572AEB5A5B04809878AE645 /* MeloXLyricsWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		D3000000000000000000000B /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = A1D0AD000000000000000003 /* GRDB */; };
+		F60000000000000000000001 /* AudioStreaming in Frameworks */ = {isa = PBXBuildFile; productRef = F60000000000000000000004 /* AudioStreaming */; };
+		F60000000000000000000002 /* AudioStreaming in Frameworks */ = {isa = PBXBuildFile; productRef = F60000000000000000000004 /* AudioStreaming */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		4D674F3579C9450D998FCCD4 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 6DB1D87A300F5FA000FB3AEE /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 1CC9813243AD4097A843BDAE;
+			remoteInfo = MeloXLyricsWidget;
+		};
+		B1000000000000000000000D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 6DB1D87A300F5FA000FB3AEE /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B10000000000000000000001;
+			remoteInfo = "MeloX Watch App";
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		1B6FDCCD92FB45FD9037E16A /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				CDCDC02B263846DD93AAF886 /* MeloXLyricsWidget.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B1000000000000000000000C /* Embed Watch Content */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
+			dstSubfolderSpec = 16;
+			files = (
+				B1000000000000000000000B /* MeloX Watch App.app in Embed Watch Content */,
+			);
+			name = "Embed Watch Content";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		2572AEB5A5B04809878AE645 /* MeloXLyricsWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = MeloXLyricsWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		6DB1D882300F5FA000FB3AEE /* MeloX.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MeloX.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B10000000000000000000002 /* MeloX Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "MeloX Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		D30000000000000000000001 /* MeloX Desktop.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "MeloX Desktop.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		5CE2BA0B40F343D79AC8A76F /* Exceptions for "MeloXLyricsWidget" folder in "MeloXLyricsWidget" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 1CC9813243AD4097A843BDAE /* MeloXLyricsWidget */;
+		};
 		6DB1D892300F5FA100FB3AEE /* Exceptions for "MeloX" folder in "MeloX" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
 			target = 6DB1D881300F5FA000FB3AEE /* MeloX */;
+		};
+		B1000000000000000000000F /* Exceptions for "MeloXWatch" folder in "MeloX Watch App" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = B10000000000000000000001 /* MeloX Watch App */;
+		};
+		D30000000000000000000002 /* Exceptions for "MeloXDesktop" folder in "MeloX Desktop" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = D30000000000000000000007 /* MeloX Desktop */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -33,14 +106,79 @@
 			path = MeloX;
 			sourceTree = "<group>";
 		};
+		B10000000000000000000003 /* MeloXWatch */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				B1000000000000000000000F /* Exceptions for "MeloXWatch" folder in "MeloX Watch App" target */,
+			);
+			path = MeloXWatch;
+			sourceTree = "<group>";
+		};
+		B10000000000000000000004 /* MeloXWatchShared */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = MeloXWatchShared;
+			sourceTree = "<group>";
+		};
+		C2283E4B5CA041B19C10CB23 /* MeloXLiveActivityShared */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = MeloXLiveActivityShared;
+			sourceTree = "<group>";
+		};
+		CCEB73D46F0F496D8CBFF0CE /* MeloXLyricsWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				5CE2BA0B40F343D79AC8A76F /* Exceptions for "MeloXLyricsWidget" folder in "MeloXLyricsWidget" target */,
+			);
+			path = MeloXLyricsWidget;
+			sourceTree = "<group>";
+		};
+		D30000000000000000000003 /* MeloXDesktop */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				D30000000000000000000002 /* Exceptions for "MeloXDesktop" folder in "MeloX Desktop" target */,
+			);
+			path = MeloXDesktop;
+			sourceTree = "<group>";
+		};
+		E40000000000000000000001 /* MeloXLocalization */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = MeloXLocalization;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		39B85FFF6E9E459DAA0A4494 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		6DB1D87F300F5FA000FB3AEE /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				A1D0AD000000000000000001 /* GRDB in Frameworks */,
+				F60000000000000000000001 /* AudioStreaming in Frameworks */,
+				C20000000000000000000001 /* NukeUI in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B10000000000000000000006 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B10000000000000000000010 /* QRCode in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D30000000000000000000005 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D3000000000000000000000B /* GRDB in Frameworks */,
+				F60000000000000000000002 /* AudioStreaming in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -51,6 +189,12 @@
 			isa = PBXGroup;
 			children = (
 				6DB1D884300F5FA000FB3AEE /* MeloX */,
+				D30000000000000000000003 /* MeloXDesktop */,
+				E40000000000000000000001 /* MeloXLocalization */,
+				B10000000000000000000004 /* MeloXWatchShared */,
+				B10000000000000000000003 /* MeloXWatch */,
+				CCEB73D46F0F496D8CBFF0CE /* MeloXLyricsWidget */,
+				C2283E4B5CA041B19C10CB23 /* MeloXLiveActivityShared */,
 				6DB1D883300F5FA000FB3AEE /* Products */,
 			);
 			sourceTree = "<group>";
@@ -59,6 +203,9 @@
 			isa = PBXGroup;
 			children = (
 				6DB1D882300F5FA000FB3AEE /* MeloX.app */,
+				D30000000000000000000001 /* MeloX Desktop.app */,
+				B10000000000000000000002 /* MeloX Watch App.app */,
+				2572AEB5A5B04809878AE645 /* MeloXLyricsWidget.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -66,6 +213,30 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		1CC9813243AD4097A843BDAE /* MeloXLyricsWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0545B7B4C6554373BF4C90DA /* Build configuration list for PBXNativeTarget "MeloXLyricsWidget" */;
+			buildPhases = (
+				395794F7FDEC4F06BCE80819 /* Sources */,
+				39B85FFF6E9E459DAA0A4494 /* Frameworks */,
+				8717B4F6E49149009FCCA16D /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				C2283E4B5CA041B19C10CB23 /* MeloXLiveActivityShared */,
+				CCEB73D46F0F496D8CBFF0CE /* MeloXLyricsWidget */,
+				E40000000000000000000001 /* MeloXLocalization */,
+			);
+			name = MeloXLyricsWidget;
+			packageProductDependencies = (
+			);
+			productName = MeloXLyricsWidget;
+			productReference = 2572AEB5A5B04809878AE645 /* MeloXLyricsWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		6DB1D881300F5FA000FB3AEE /* MeloX */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 6DB1D88F300F5FA100FB3AEE /* Build configuration list for PBXNativeTarget "MeloX" */;
@@ -73,20 +244,81 @@
 				6DB1D87E300F5FA000FB3AEE /* Sources */,
 				6DB1D87F300F5FA000FB3AEE /* Frameworks */,
 				6DB1D880300F5FA000FB3AEE /* Resources */,
+				A1D0AD000000000000000004 /* Generate Release Notes */,
+				1B6FDCCD92FB45FD9037E16A /* Embed Foundation Extensions */,
+				B1000000000000000000000C /* Embed Watch Content */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				B680245FE2CA46B0B69EBFF8 /* PBXTargetDependency */,
+				B1000000000000000000000E /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				6DB1D884300F5FA000FB3AEE /* MeloX */,
+				B10000000000000000000004 /* MeloXWatchShared */,
+				C2283E4B5CA041B19C10CB23 /* MeloXLiveActivityShared */,
+				E40000000000000000000001 /* MeloXLocalization */,
+			);
+			name = MeloX;
+			packageProductDependencies = (
+				A1D0AD000000000000000003 /* GRDB */,
+				F60000000000000000000004 /* AudioStreaming */,
+				C20000000000000000000003 /* NukeUI */,
+			);
+			productName = MeloX;
+			productReference = 6DB1D882300F5FA000FB3AEE /* MeloX.app */;
+			productType = "com.apple.product-type.application";
+		};
+		B10000000000000000000001 /* MeloX Watch App */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B10000000000000000000008 /* Build configuration list for PBXNativeTarget "MeloX Watch App" */;
+			buildPhases = (
+				B10000000000000000000005 /* Sources */,
+				B10000000000000000000006 /* Frameworks */,
+				B10000000000000000000007 /* Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				6DB1D884300F5FA000FB3AEE /* MeloX */,
+				B10000000000000000000003 /* MeloXWatch */,
+				B10000000000000000000004 /* MeloXWatchShared */,
+				E40000000000000000000001 /* MeloXLocalization */,
 			);
-			name = MeloX;
+			name = "MeloX Watch App";
+			packageProductDependencies = (
+				B10000000000000000000012 /* QRCode */,
+			);
+			productName = "MeloX Watch App";
+			productReference = B10000000000000000000002 /* MeloX Watch App.app */;
+			productType = "com.apple.product-type.application";
+		};
+		D30000000000000000000007 /* MeloX Desktop */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D30000000000000000000008 /* Build configuration list for PBXNativeTarget "MeloX Desktop" */;
+			buildPhases = (
+				D30000000000000000000004 /* Sources */,
+				D30000000000000000000005 /* Frameworks */,
+				D30000000000000000000006 /* Resources */,
+				D3000000000000000000000C /* Generate macOS Release Notes */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				D30000000000000000000003 /* MeloXDesktop */,
+				E40000000000000000000001 /* MeloXLocalization */,
+			);
+			name = "MeloX Desktop";
 			packageProductDependencies = (
 				A1D0AD000000000000000003 /* GRDB */,
+				F60000000000000000000004 /* AudioStreaming */,
 			);
-			productName = MeloX;
-			productReference = 6DB1D882300F5FA000FB3AEE /* MeloX.app */;
+			productName = "MeloX Desktop";
+			productReference = D30000000000000000000001 /* MeloX Desktop.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -99,7 +331,26 @@
 				LastSwiftUpdateCheck = 2660;
 				LastUpgradeCheck = 2660;
 				TargetAttributes = {
+					1CC9813243AD4097A843BDAE = {
+						CreatedOnToolsVersion = 26.6;
+						SystemCapabilities = {
+							com.apple.ApplicationGroups.iOS = {
+								enabled = 1;
+							};
+						};
+					};
 					6DB1D881300F5FA000FB3AEE = {
+						CreatedOnToolsVersion = 26.6;
+						SystemCapabilities = {
+							com.apple.ApplicationGroups.iOS = {
+								enabled = 1;
+							};
+						};
+					};
+					B10000000000000000000001 = {
+						CreatedOnToolsVersion = 26.6;
+					};
+					D30000000000000000000007 = {
 						CreatedOnToolsVersion = 26.6;
 					};
 				};
@@ -109,12 +360,16 @@
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
+				"zh-Hans",
 				Base,
 			);
 			mainGroup = 6DB1D879300F5FA000FB3AEE;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				A1D0AD000000000000000002 /* XCRemoteSwiftPackageReference "GRDB.swift" */,
+				B10000000000000000000011 /* XCLocalSwiftPackageReference "vendor/QRCode" */,
+				F60000000000000000000003 /* XCLocalSwiftPackageReference "vendor/AudioStreaming" */,
+				C20000000000000000000002 /* XCRemoteSwiftPackageReference "Nuke" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 6DB1D883300F5FA000FB3AEE /* Products */;
@@ -122,6 +377,9 @@
 			projectRoot = "";
 			targets = (
 				6DB1D881300F5FA000FB3AEE /* MeloX */,
+				D30000000000000000000007 /* MeloX Desktop */,
+				B10000000000000000000001 /* MeloX Watch App */,
+				1CC9813243AD4097A843BDAE /* MeloXLyricsWidget */,
 			);
 		};
 /* End PBXProject section */
@@ -134,10 +392,99 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		8717B4F6E49149009FCCA16D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B10000000000000000000007 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D30000000000000000000006 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		A1D0AD000000000000000004 /* Generate Release Notes */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/.github/scripts/generate_release_notes.py",
+				"$(SRCROOT)/.github/scripts/release_notes.py",
+				"$(SRCROOT)/RELEASE_NOTES.md",
+				"$(SRCROOT)/.git",
+			);
+			name = "Generate Release Notes";
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/ReleaseNotes.json",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/ReleaseNotes.md",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/bash;
+			shellScript = "set -euo pipefail\n\nRELEASE_NOTES_DIRECTORY=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}\"\nRELEASE_NOTES_SOURCE=\"${SRCROOT}/RELEASE_NOTES.md\"\nCURRENT_REFERENCE=\"${RELEASE_NOTES_CURRENT_REF:-HEAD}\"\nMETADATA_OUTPUT_PATH=\"${RELEASE_NOTES_DIRECTORY}/ReleaseNotes.json\"\nMARKDOWN_OUTPUT_PATH=\"${RELEASE_NOTES_DIRECTORY}/ReleaseNotes.md\"\n\nmkdir -p \"${RELEASE_NOTES_DIRECTORY}\"\nexport GIT_CONFIG_NOSYSTEM=1\nexport GIT_CONFIG_GLOBAL=/dev/null\n\nGENERATOR_ARGUMENTS=(\n    --current-ref \"${CURRENT_REFERENCE}\"\n    --platform ios\n    --build-number \"${CURRENT_PROJECT_VERSION}\"\n    --notes \"${RELEASE_NOTES_SOURCE}\"\n    --output \"${METADATA_OUTPUT_PATH}\"\n    --markdown-output \"${MARKDOWN_OUTPUT_PATH}\"\n    --allow-empty\n)\nif [[ -n \"${RELEASE_NOTES_PREVIOUS_REF:-}\" ]]; then\n    GENERATOR_ARGUMENTS+=(--previous-ref \"${RELEASE_NOTES_PREVIOUS_REF}\")\nfi\n/usr/bin/python3 \"${SRCROOT}/.github/scripts/generate_release_notes.py\" \"${GENERATOR_ARGUMENTS[@]}\"\n";
+			showEnvVarsInLog = 0;
+		};
+		D3000000000000000000000C /* Generate macOS Release Notes */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/.github/scripts/generate_release_notes.py",
+				"$(SRCROOT)/.github/scripts/release_notes.py",
+				"$(SRCROOT)/RELEASE_NOTES.md",
+				"$(SRCROOT)/.git",
+			);
+			name = "Generate macOS Release Notes";
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/ReleaseNotes.json",
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/ReleaseNotes.md",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/bash;
+			shellScript = "set -euo pipefail\n\nRELEASE_NOTES_DIRECTORY=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}\"\nRELEASE_NOTES_SOURCE=\"${SRCROOT}/RELEASE_NOTES.md\"\nCURRENT_REFERENCE=\"${RELEASE_NOTES_CURRENT_REF:-HEAD}\"\nMETADATA_OUTPUT_PATH=\"${RELEASE_NOTES_DIRECTORY}/ReleaseNotes.json\"\nMARKDOWN_OUTPUT_PATH=\"${RELEASE_NOTES_DIRECTORY}/ReleaseNotes.md\"\n\nmkdir -p \"${RELEASE_NOTES_DIRECTORY}\"\nexport GIT_CONFIG_NOSYSTEM=1\nexport GIT_CONFIG_GLOBAL=/dev/null\n\nGENERATOR_ARGUMENTS=(\n    --current-ref \"${CURRENT_REFERENCE}\"\n    --platform macos\n    --build-number \"${CURRENT_PROJECT_VERSION}\"\n    --notes \"${RELEASE_NOTES_SOURCE}\"\n    --output \"${METADATA_OUTPUT_PATH}\"\n    --markdown-output \"${MARKDOWN_OUTPUT_PATH}\"\n    --allow-empty\n)\nif [[ -n \"${RELEASE_NOTES_PREVIOUS_REF:-}\" ]]; then\n    GENERATOR_ARGUMENTS+=(--previous-ref \"${RELEASE_NOTES_PREVIOUS_REF}\")\nfi\n/usr/bin/python3 \"${SRCROOT}/.github/scripts/generate_release_notes.py\" \"${GENERATOR_ARGUMENTS[@]}\"\n";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
+		395794F7FDEC4F06BCE80819 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		6DB1D87E300F5FA000FB3AEE /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B10000000000000000000005 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D30000000000000000000004 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -146,7 +493,55 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		B1000000000000000000000E /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			platformFilter = ios;
+			target = B10000000000000000000001 /* MeloX Watch App */;
+			targetProxy = B1000000000000000000000D /* PBXContainerItemProxy */;
+		};
+		B680245FE2CA46B0B69EBFF8 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 1CC9813243AD4097A843BDAE /* MeloXLyricsWidget */;
+			targetProxy = 4D674F3579C9450D998FCCD4 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		17A82F264C644B0C924CA420 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = MeloXLyricsWidget/MeloXLyricsWidget.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Distribution";
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 9110201;
+				DEVELOPMENT_TEAM = "";
+				"DEVELOPMENT_TEAM[sdk=iphoneos*]" = LAW363CUU8;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = MeloXLyricsWidget/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 2.0;
+				PRODUCT_BUNDLE_IDENTIFIER = azki.moye.MeloX.LyricsWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "MeloX LyricsWidget";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
 		6DB1D88D300F5FA100FB3AEE /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -273,10 +668,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2607253;
-				DEVELOPMENT_TEAM = YG7LA7A4T5;
+				CODE_SIGN_ENTITLEMENTS = MeloX/MeloX.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Distribution";
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 9110300;
+				DEVELOPMENT_TEAM = "";
+				"DEVELOPMENT_TEAM[sdk=iphoneos*]" = LAW363CUU8;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = MeloX/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -288,10 +687,15 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.4.3;
-				PRODUCT_BUNDLE_IDENTIFIER = moye.MeloX;
+				MARKETING_VERSION = 2.0;
+				PRODUCT_BUNDLE_IDENTIFIER = azki.moye.MeloX;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = MeloX;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -306,10 +710,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2607253;
-				DEVELOPMENT_TEAM = YG7LA7A4T5;
+				CODE_SIGN_ENTITLEMENTS = MeloX/MeloX.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Distribution";
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 9110300;
+				DEVELOPMENT_TEAM = "";
+				"DEVELOPMENT_TEAM[sdk=iphoneos*]" = LAW363CUU8;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = MeloX/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -321,9 +729,195 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 0.4.3;
-				PRODUCT_BUNDLE_IDENTIFIER = moye.MeloX;
+				MARKETING_VERSION = 2.0;
+				PRODUCT_BUNDLE_IDENTIFIER = azki.moye.MeloX;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = MeloX;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		B10000000000000000000009 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				"CODE_SIGN_IDENTITY[sdk=watchos*]" = "iPhone Distribution";
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 9110300;
+				DEVELOPMENT_TEAM = "";
+				"DEVELOPMENT_TEAM[sdk=watchos*]" = LAW363CUU8;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = MeloXWatch/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 2.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-ObjC",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = azki.moye.MeloX.watchkitapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=watchos*]" = "MeloX watch";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "watchos watchsimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Debug;
+		};
+		B1000000000000000000000A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				"CODE_SIGN_IDENTITY[sdk=watchos*]" = "iPhone Distribution";
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 9110300;
+				DEVELOPMENT_TEAM = "";
+				"DEVELOPMENT_TEAM[sdk=watchos*]" = LAW363CUU8;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = MeloXWatch/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 2.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-ObjC",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = azki.moye.MeloX.watchkitapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=watchos*]" = "MeloX watch";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "watchos watchsimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Release;
+		};
+		D30000000000000000000009 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = MeloXDesktop/MeloXDesktop.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 9100300;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = MeloXDesktop/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MARKETING_VERSION = 0.3.0;
+				PRODUCT_BUNDLE_IDENTIFIER = azki.moye.MeloX.desktop;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		D3000000000000000000000A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = MeloXDesktop/MeloXDesktop.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 9100300;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = MeloXDesktop/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MARKETING_VERSION = 0.3.0;
+				PRODUCT_BUNDLE_IDENTIFIER = azki.moye.MeloX.desktop;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		F069EC317AEC4255A40182CE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = MeloXLyricsWidget/MeloXLyricsWidget.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Distribution";
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 9110201;
+				DEVELOPMENT_TEAM = "";
+				"DEVELOPMENT_TEAM[sdk=iphoneos*]" = LAW363CUU8;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = MeloXLyricsWidget/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 2.0;
+				PRODUCT_BUNDLE_IDENTIFIER = azki.moye.MeloX.LyricsWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "MeloX LyricsWidget";
+				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
@@ -337,6 +931,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		0545B7B4C6554373BF4C90DA /* Build configuration list for PBXNativeTarget "MeloXLyricsWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				17A82F264C644B0C924CA420 /* Debug */,
+				F069EC317AEC4255A40182CE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		6DB1D87D300F5FA000FB3AEE /* Build configuration list for PBXProject "MeloX" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -355,7 +958,36 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		B10000000000000000000008 /* Build configuration list for PBXNativeTarget "MeloX Watch App" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B10000000000000000000009 /* Debug */,
+				B1000000000000000000000A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		D30000000000000000000008 /* Build configuration list for PBXNativeTarget "MeloX Desktop" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D30000000000000000000009 /* Debug */,
+				D3000000000000000000000A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		B10000000000000000000011 /* XCLocalSwiftPackageReference "vendor/QRCode" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = vendor/QRCode;
+		};
+		F60000000000000000000003 /* XCLocalSwiftPackageReference "vendor/AudioStreaming" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = vendor/AudioStreaming;
+		};
+/* End XCLocalSwiftPackageReference section */
 
 /* Begin XCRemoteSwiftPackageReference section */
 		A1D0AD000000000000000002 /* XCRemoteSwiftPackageReference "GRDB.swift" */ = {
@@ -366,6 +998,14 @@
 				minimumVersion = 7.10.0;
 			};
 		};
+		C20000000000000000000002 /* XCRemoteSwiftPackageReference "Nuke" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/kean/Nuke.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 13.0.6;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -373,6 +1013,21 @@
 			isa = XCSwiftPackageProductDependency;
 			package = A1D0AD000000000000000002 /* XCRemoteSwiftPackageReference "GRDB.swift" */;
 			productName = GRDB;
+		};
+		B10000000000000000000012 /* QRCode */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B10000000000000000000011 /* XCLocalSwiftPackageReference "vendor/QRCode" */;
+			productName = QRCode;
+		};
+		C20000000000000000000003 /* NukeUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C20000000000000000000002 /* XCRemoteSwiftPackageReference "Nuke" */;
+			productName = NukeUI;
+		};
+		F60000000000000000000004 /* AudioStreaming */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F60000000000000000000003 /* XCLocalSwiftPackageReference "vendor/AudioStreaming" */;
+			productName = AudioStreaming;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

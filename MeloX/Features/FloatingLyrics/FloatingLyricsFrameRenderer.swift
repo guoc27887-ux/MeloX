@@ -8,6 +8,8 @@ import UIKit
 @MainActor
 final class FloatingLyricsFrameRenderer {
     static let renderSize = CGSize(width: 960, height: 320)
+    static let frameDuration = CMTime(value: 1, timescale: 30)
+    static let presentationLeadTime = CMTime(value: 2, timescale: 30)
 
     private let player: PlayerStore
     private let settings: AppSettings
@@ -47,7 +49,7 @@ final class FloatingLyricsFrameRenderer {
         }
 
         var timing = CMSampleTimingInfo(
-            duration: .invalid,
+            duration: Self.frameDuration,
             presentationTimeStamp: presentationTime,
             decodeTimeStamp: .invalid
         )
@@ -61,7 +63,6 @@ final class FloatingLyricsFrameRenderer {
         )
         guard status == noErr, let sampleBuffer else { return nil }
 
-        markForImmediateDisplay(sampleBuffer)
         return sampleBuffer
     }
 
@@ -71,6 +72,7 @@ final class FloatingLyricsFrameRenderer {
         let attributes: [CFString: Any] = [
             kCVPixelBufferCGImageCompatibilityKey: true,
             kCVPixelBufferCGBitmapContextCompatibilityKey: true,
+            kCVPixelBufferMetalCompatibilityKey: true,
             kCVPixelBufferIOSurfacePropertiesKey: [:],
         ]
 
@@ -133,27 +135,5 @@ final class FloatingLyricsFrameRenderer {
             formatDescriptionOut: &formatDescription
         )
         return status == noErr ? formatDescription : nil
-    }
-
-    private func markForImmediateDisplay(_ sampleBuffer: CMSampleBuffer) {
-        guard let attachments = CMSampleBufferGetSampleAttachmentsArray(
-            sampleBuffer,
-            createIfNecessary: true
-        ), CFArrayGetCount(attachments) > 0 else {
-            return
-        }
-
-        let rawDictionary = CFArrayGetValueAtIndex(attachments, 0)
-        let dictionary = unsafeBitCast(
-            rawDictionary,
-            to: CFMutableDictionary.self
-        )
-        CFDictionarySetValue(
-            dictionary,
-            Unmanaged.passUnretained(
-                kCMSampleAttachmentKey_DisplayImmediately
-            ).toOpaque(),
-            Unmanaged.passUnretained(kCFBooleanTrue).toOpaque()
-        )
     }
 }

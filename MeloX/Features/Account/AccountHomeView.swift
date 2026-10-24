@@ -85,18 +85,18 @@ struct AccountHomeView: View {
             ShareLink(item: homepageURL) {
                 Image(systemName: "square.and.arrow.up")
             }
-            .accessibilityLabel("分享个人主页")
+            .accessibilityLabel("ui.account.share_profile")
 
             Menu {
                 Button {
                     Task { await load() }
                 } label: {
-                    Label("刷新", systemImage: "arrow.clockwise")
+                    Label("ui.common.refresh", systemImage: "arrow.clockwise")
                 }
             } label: {
                 Image(systemName: "ellipsis")
             }
-            .accessibilityLabel("更多")
+            .accessibilityLabel("ui.common.more")
         }
         .sharedBackgroundVisibility(.visible)
     }

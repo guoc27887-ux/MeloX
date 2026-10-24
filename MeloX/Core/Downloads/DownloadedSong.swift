@@ -1,6 +1,6 @@
 import Foundation
 
-struct DownloadedSong: Codable, Hashable, Identifiable {
+nonisolated struct DownloadedSong: Codable, Hashable, Identifiable {
     let song: Song
     let fileName: String
     let byteCount: Int64

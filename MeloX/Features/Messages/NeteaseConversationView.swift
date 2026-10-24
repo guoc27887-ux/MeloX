@@ -45,16 +45,16 @@ struct NeteaseConversationView: View {
         .overlay {
             switch phase {
             case .loading where messages.isEmpty:
-                ProgressView("正在读取私信")
+                ProgressView("ui.messages.loading_private_messages")
             case .failed(let message) where messages.isEmpty:
                 ConnectionUnavailableView(message: message) {
                     Task { await load() }
                 }
             case .loaded where messages.isEmpty:
                 ContentUnavailableView(
-                    "还没有消息",
+                    "ui.messages.no_messages",
                     systemImage: "bubble.left",
-                    description: Text("在下方输入内容即可发起私信。")
+                    description: Text("ui.messages.no_messages.message")
                 )
             default:
                 EmptyView()
@@ -64,23 +64,23 @@ struct NeteaseConversationView: View {
             await load()
         }
         .alert(
-            "发送失败",
+            "ui.messages.send_failed",
             isPresented: Binding(
                 get: { sendError != nil },
                 set: { if !$0 { sendError = nil } }
             )
         ) {
-            Button("好", role: .cancel) {
+            Button("ui.common.ok", role: .cancel) {
                 sendError = nil
             }
         } message: {
-            Text(sendError ?? "网易云音乐未完成操作。")
+            Text(sendError ?? L10n.string("ui.error.netease_operation_incomplete"))
         }
     }
 
     private var composer: some View {
         HStack(alignment: .bottom, spacing: 10) {
-            TextField("输入私信", text: $draft, axis: .vertical)
+            TextField("ui.messages.input_private_message", text: $draft, axis: .vertical)
                 .lineLimit(1...5)
                 .textFieldStyle(.roundedBorder)
                 .submitLabel(.send)
@@ -100,7 +100,7 @@ struct NeteaseConversationView: View {
                 }
             }
             .disabled(trimmedDraft.isEmpty || isSending)
-            .accessibilityLabel("发送")
+            .accessibilityLabel("ui.common.send")
         }
         .padding(.horizontal)
         .padding(.vertical, 10)
@@ -199,7 +199,10 @@ struct NeteaseConversationView: View {
         Date(
             timeIntervalSince1970: TimeInterval(milliseconds) / 1_000
         )
-        .formatted(date: .abbreviated, time: .shortened)
+        .formatted(
+            Date.FormatStyle(date: .abbreviated, time: .shortened)
+                .locale(L10n.locale)
+        )
     }
 
     private func musicRoute(

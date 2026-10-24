@@ -20,7 +20,7 @@ struct OnboardingWelcomeView: View {
                     .font(.largeTitle.bold())
                     .accessibilityAddTraits(.isHeader)
 
-                Text("用原生方式发现、播放和收藏网易云音乐。")
+                Text("ui.onboarding.welcome.subtitle")
                     .font(.title3)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -31,7 +31,7 @@ struct OnboardingWelcomeView: View {
 
             Spacer(minLength: 36)
 
-            Text("MeloX 是非官方第三方客户端，与网易云音乐及其关联公司不存在隶属、合作或授权关系。")
+            Text("ui.legal.unofficial_disclaimer")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -42,7 +42,7 @@ struct OnboardingWelcomeView: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 10) {
                 Button(action: continueAction) {
-                    Text("继续")
+                    Text("ui.common.continue")
                         .font(.headline)
                         .frame(maxWidth: .infinity)
                 }
@@ -50,7 +50,7 @@ struct OnboardingWelcomeView: View {
                 .buttonBorderShape(.capsule)
                 .controlSize(.large)
 
-                Button("项目与许可", action: showLicenses)
+                Button("ui.legal.projects_licenses.title", action: showLicenses)
                     .font(.subheadline.weight(.semibold))
                     .buttonStyle(.plain)
                     .foregroundStyle(.secondary)
@@ -77,7 +77,7 @@ struct OnboardingAccountView: View {
                 accountIdentity
 
                 if isLoggedIn {
-                    Text("你的收藏歌曲、歌单和播放历史会显示在音乐库中。")
+                    Text("ui.onboarding.account.logged_in_message")
                         .font(.body)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -95,11 +95,11 @@ struct OnboardingAccountView: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 10) {
                 if isLoggedIn {
-                    prominentButton("开始使用 MeloX", action: finish)
+                    prominentButton(L10n.string("ui.onboarding.start"), action: finish)
                 } else {
-                    prominentButton("登录网易云音乐", action: login)
+                    prominentButton(L10n.string("ui.account.login_netease"), action: login)
 
-                    Button("稍后再说", action: finish)
+                    Button("ui.common.maybe_later", action: finish)
                         .font(.headline)
                         .buttonStyle(.plain)
                         .foregroundStyle(.secondary)
@@ -111,7 +111,7 @@ struct OnboardingAccountView: View {
             .padding(.bottom, 12)
             .background(.bar)
         }
-        .navigationTitle("网易云音乐")
+        .navigationTitle("ui.service.netease_cloud_music")
         .navigationBarTitleDisplayMode(.inline)
     }
 
@@ -132,10 +132,10 @@ struct OnboardingAccountView: View {
             .clipShape(.circle)
 
             VStack(spacing: 8) {
-                Text(profile?.nickname ?? "网易云音乐账号")
+                Text(profile?.nickname ?? L10n.string("ui.account.netease_account"))
                     .font(.title.bold())
                     .accessibilityAddTraits(.isHeader)
-                Label("已登录", systemImage: "checkmark.circle.fill")
+                Label("ui.account.logged_in", systemImage: "checkmark.circle.fill")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.green)
             }
@@ -146,10 +146,10 @@ struct OnboardingAccountView: View {
                 .accessibilityHidden(true)
 
             VStack(spacing: 10) {
-                Text("连接网易云音乐")
+                Text("ui.onboarding.account.connect")
                     .font(.title.bold())
                     .accessibilityAddTraits(.isHeader)
-                Text("登录后可以同步个人音乐库并使用账号相关功能。登录并不是开始使用 MeloX 的必要条件。")
+                Text("ui.onboarding.account.connect_message")
                     .font(.body)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -160,9 +160,9 @@ struct OnboardingAccountView: View {
 
     private var signInBenefits: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Label("同步收藏歌曲、歌单和播放历史", systemImage: "music.note.list")
-            Label("访问每日推荐等账号专属内容", systemImage: "sparkles")
-            Label("登录 Cookie 仅保存在本机", systemImage: "lock.iphone")
+            Label("ui.onboarding.benefit.sync_library", systemImage: "music.note.list")
+            Label("ui.onboarding.benefit.personalized_content", systemImage: "sparkles")
+            Label("ui.onboarding.benefit.local_cookie", systemImage: "lock.iphone")
         }
         .font(.body)
         .frame(maxWidth: .infinity, alignment: .leading)

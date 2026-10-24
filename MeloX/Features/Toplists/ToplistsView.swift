@@ -19,7 +19,7 @@ struct ToplistsView: View {
         Group {
             switch phase {
             case .loading where playlists.isEmpty:
-                ProgressView("正在载入排行榜")
+                ProgressView("ui.toplists.loading")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             case .failed(let message) where playlists.isEmpty:
                 ConnectionUnavailableView(message: message) {
@@ -29,7 +29,7 @@ struct ToplistsView: View {
                 content
             }
         }
-        .navigationTitle("排行榜")
+        .navigationTitle("ui.toplists.title")
         .navigationBarTitleDisplayMode(.large)
         .task(id: reloadToken) {
             guard playlists.isEmpty else { return }
@@ -40,7 +40,7 @@ struct ToplistsView: View {
     @ViewBuilder
     private var content: some View {
         if playlists.isEmpty {
-            ContentUnavailableView("暂无榜单", systemImage: "chart.bar")
+            ContentUnavailableView("ui.toplists.empty", systemImage: "chart.bar")
         } else {
             GeometryReader { proxy in
                 let layout = MediaCardGridLayout(
@@ -52,20 +52,20 @@ struct ToplistsView: View {
                     LazyVStack(alignment: .leading, spacing: 30) {
                         if officialToplists.isEmpty {
                             ToplistGridSection(
-                                title: "全部榜单",
+                                title: L10n.string("ui.toplists.all"),
                                 playlists: playlists,
                                 layout: layout
                             )
                         } else {
                             ToplistGridSection(
-                                title: "官方榜",
+                                title: L10n.string("ui.toplists.official"),
                                 playlists: officialToplists,
                                 layout: layout
                             )
 
                             if !globalToplists.isEmpty {
                                 ToplistGridSection(
-                                    title: "全球榜",
+                                    title: L10n.string("ui.toplists.global"),
                                     playlists: globalToplists,
                                     layout: layout
                                 )
@@ -110,7 +110,7 @@ private struct ToplistGridSection: View {
 
                 Spacer()
 
-                Text("\(playlists.count) 个榜单")
+                Text(L10n.format("ui.common.toplist_count", playlists.count))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -124,7 +124,7 @@ private struct ToplistGridSection: View {
                     NavigationLink(value: MusicRoute.toplist(playlist)) {
                         MediaCardView(
                             title: playlist.name,
-                            subtitle: playlist.updateFrequency ?? "\(playlist.trackCount) 首歌曲",
+                            subtitle: playlist.updateFrequency ?? L10n.format("ui.common.song_count", playlist.trackCount),
                             artworkURL: playlist.artworkURL,
                             artworkSize: layout.itemWidth
                         )
@@ -132,7 +132,7 @@ private struct ToplistGridSection: View {
                     }
                     .buttonStyle(.plain)
                     .musicMatchedTransitionSource(for: MusicRoute.toplist(playlist))
-                    .accessibilityHint("查看榜单歌曲")
+                    .accessibilityHint("ui.toplists.view_songs_hint")
                 }
             }
         }

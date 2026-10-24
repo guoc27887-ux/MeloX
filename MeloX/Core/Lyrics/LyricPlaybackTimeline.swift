@@ -2,6 +2,7 @@ import Foundation
 
 struct LyricPlaybackPosition: Equatable {
     let highlightedLyricID: LyricLine.ID?
+    let activeLyricIDs: Set<LyricLine.ID>
     let nextTransitionTime: TimeInterval?
 }
 
@@ -29,8 +30,6 @@ struct LyricFocusCascadeTiming: Equatable {
 }
 
 enum LyricPlaybackTimeline {
-    private static let maximumFocusCascadeMinimumCatchUpDuration = 0.18
-
     static func position(
         at playbackTime: TimeInterval,
         in lyrics: [LyricLine]
@@ -38,6 +37,7 @@ enum LyricPlaybackTimeline {
         guard !lyrics.isEmpty else {
             return LyricPlaybackPosition(
                 highlightedLyricID: nil,
+                activeLyricIDs: [],
                 nextTransitionTime: nil
             )
         }
@@ -53,16 +53,111 @@ enum LyricPlaybackTimeline {
             }
         }
 
-        let highlightedLyricID = lowerBound > lyrics.startIndex
+        let latestStartedLyricID = lowerBound > lyrics.startIndex
             ? lyrics[lyrics.index(before: lowerBound)].id
             : nil
-        let nextTransitionTime = lowerBound < lyrics.endIndex
+        var activeLyrics = lyrics[..<lowerBound].filter { line in
+            guard line.time <= playbackTime else { return false }
+            switch line.timingKind {
+            case .precise:
+                guard let duration = line.duration,
+                      duration > 0 else {
+                    return line.id == latestStartedLyricID
+                }
+                return playbackTime < line.time + duration
+            case .lineSynchronized:
+                return line.id == latestStartedLyricID
+            }
+        }
+        if activeLyrics.isEmpty,
+           let latestStartedLyricID,
+           let highlightedLine = lyrics[..<lowerBound].last(where: {
+               $0.id == latestStartedLyricID
+           }) {
+            activeLyrics = [highlightedLine]
+        }
+        let highlightedLyricID = activeLyrics.last(where: {
+            $0.agent?.alignment != .flipped
+        })?.id ?? activeLyrics.last.map {
+            inheritedFocusLyricID(
+                for: $0,
+                in: lyrics[..<lowerBound]
+            )
+        } ?? latestStartedLyricID
+        let activeLyricIDs = Set(activeLyrics.map(\.id))
+        let nextStartTime = lowerBound < lyrics.endIndex
             ? lyrics[lowerBound].time
             : nil
+        let nextEndTime = activeLyrics.compactMap { line -> TimeInterval? in
+            guard line.timingKind == .precise,
+                  let duration = line.duration,
+                  duration > 0 else {
+                return nil
+            }
+            let end = line.time + duration
+            return end > playbackTime ? end : nil
+        }.min()
+        let nextTransitionTime = [nextStartTime, nextEndTime]
+            .compactMap { $0 }
+            .min()
         return LyricPlaybackPosition(
             highlightedLyricID: highlightedLyricID,
+            activeLyricIDs: activeLyricIDs,
             nextTransitionTime: nextTransitionTime
         )
+    }
+
+    /// Apple Music keeps overlapping lines in a selected-lines collection.
+    /// A secondary agent that starts while another line is selected joins
+    /// that selection instead of becoming a new scroll focus when the first
+    /// line finishes. A secondary line that starts alone still owns focus.
+    private static func inheritedFocusLyricID(
+        for target: LyricLine,
+        in startedLyrics: ArraySlice<LyricLine>
+    ) -> LyricLine.ID {
+        typealias FocusEntry = (
+            endTime: TimeInterval,
+            ownerID: LyricLine.ID,
+            isPrimary: Bool
+        )
+        var overlappingEntries: [FocusEntry] = []
+
+        for line in startedLyrics {
+            overlappingEntries.removeAll {
+                $0.endTime <= line.time
+            }
+
+            let isPrimary = line.agent?.alignment != .flipped
+            let ownerID: LyricLine.ID
+            if isPrimary {
+                ownerID = line.id
+            } else if let primaryEntry = overlappingEntries.last(where: {
+                $0.isPrimary
+            }) {
+                ownerID = primaryEntry.ownerID
+            } else {
+                ownerID = overlappingEntries.last?.ownerID ?? line.id
+            }
+
+            if line.id == target.id {
+                return ownerID
+            }
+
+            guard line.timingKind == .precise,
+                  let duration = line.duration,
+                  duration > 0 else {
+                continue
+            }
+            overlappingEntries.append(
+                (
+                    endTime: line.time + duration,
+                    ownerID: ownerID,
+                    isPrimary: isPrimary
+                )
+            )
+        }
+
+        return target.id
     }
 
     static func focusAnimationDuration(
@@ -83,7 +178,9 @@ enum LyricPlaybackTimeline {
         baseDuration: TimeInterval,
         preferredDuration: TimeInterval
     ) -> TimeInterval {
-        let duration = max(baseDuration, 0)
+        let duration = baseDuration.isFinite
+            ? max(baseDuration, 0)
+            : 0
         let configuredDuration = preferredDuration.isFinite
             ? max(preferredDuration, 0)
             : 0
@@ -111,6 +208,7 @@ enum LyricPlaybackTimeline {
               followingLineBaseDelay.isFinite,
               followingLineBaseDelay >= 0,
               preferredCatchUpCompletionRatio.isFinite,
+              focusColorLeadTime.isFinite,
               baseAnimationDuration.isFinite,
               baseAnimationDuration > 0 else {
             return nil
@@ -122,19 +220,22 @@ enum LyricPlaybackTimeline {
             max(preferredCatchUpCompletionRatio, 0),
             1
         )
-        let fullAnimationDuration = max(
-            preferredAnimationDuration,
-            baseAnimationDuration
+        let fullAnimationDuration = focusCascadeAnimationDuration(
+            baseDuration: baseAnimationDuration,
+            preferredDuration: preferredAnimationDuration
         )
+        guard let fullLineTimings = LyricFocusCascadePlanner.lineTimings(
+            maximumLineOrder: maximumLineOrder,
+            delayPerLine: delayPerLine,
+            delayIncreasePerLine: delayIncreasePerLine,
+            followingLineBaseDelay: baseDelayForFollowingLines,
+            catchUpCompletionRatio: catchUpCompletionRatio,
+            availableDuration: fullAnimationDuration
+        ) else {
+            return nil
+        }
         let fullTiming = LyricFocusCascadeTiming(
-            lineTimingsByLineOrder: focusCascadeLineTimings(
-                maximumLineOrder: maximumLineOrder,
-                delayPerLine: delayPerLine,
-                delayIncreasePerLine: delayIncreasePerLine,
-                followingLineBaseDelay: baseDelayForFollowingLines,
-                catchUpCompletionRatio: catchUpCompletionRatio,
-                animationDuration: fullAnimationDuration
-            ),
+            lineTimingsByLineOrder: fullLineTimings,
             usesBounce: prefersBounce
         )
         guard let remainingDuration, remainingDuration.isFinite else {
@@ -146,7 +247,9 @@ enum LyricPlaybackTimeline {
         let effectiveSnapThreshold = snapThreshold.isFinite
             ? max(snapThreshold, 0)
             : 0
-        guard availableDuration >= effectiveSnapThreshold else {
+        guard availableDuration.isFinite,
+              availableDuration > 0,
+              availableDuration >= effectiveSnapThreshold else {
             return nil
         }
         // Finish this cascade before the next lyric takes focus so a dense
@@ -155,67 +258,22 @@ enum LyricPlaybackTimeline {
             fullAnimationDuration,
             availableDuration
         )
+        guard let availableLineTimings = LyricFocusCascadePlanner.lineTimings(
+            maximumLineOrder: maximumLineOrder,
+            delayPerLine: delayPerLine,
+            delayIncreasePerLine: delayIncreasePerLine,
+            followingLineBaseDelay: baseDelayForFollowingLines,
+            catchUpCompletionRatio: catchUpCompletionRatio,
+            availableDuration: availableAnimationDuration
+        ) else {
+            return nil
+        }
         return LyricFocusCascadeTiming(
-            lineTimingsByLineOrder: focusCascadeLineTimings(
-                maximumLineOrder: maximumLineOrder,
-                delayPerLine: delayPerLine,
-                delayIncreasePerLine: delayIncreasePerLine,
-                followingLineBaseDelay: baseDelayForFollowingLines,
-                catchUpCompletionRatio: catchUpCompletionRatio,
-                animationDuration: availableAnimationDuration
-            ),
+            lineTimingsByLineOrder: availableLineTimings,
             usesBounce:
                 prefersBounce
                     && availableAnimationDuration >= fullAnimationDuration
         )
-    }
-
-    private static func focusCascadeLineTimings(
-        maximumLineOrder: Int,
-        delayPerLine: TimeInterval,
-        delayIncreasePerLine: TimeInterval,
-        followingLineBaseDelay: TimeInterval,
-        catchUpCompletionRatio: Double,
-        animationDuration: TimeInterval
-    ) -> [LyricFocusCascadeLineTiming] {
-        let catchUpCompletionTime =
-            animationDuration * catchUpCompletionRatio
-        let minimumCatchUpDuration = min(
-            maximumFocusCascadeMinimumCatchUpDuration,
-            animationDuration * 0.5
-        )
-        return (0...maximumLineOrder).map { lineOrder in
-            guard lineOrder > 0 else {
-                return LyricFocusCascadeLineTiming(
-                    delay: 0,
-                    duration: animationDuration
-                )
-            }
-            let delay = followingLineBaseDelay
-                + accumulatedFocusCascadeDelay(
-                    lineOrder: lineOrder,
-                    delayPerLine: delayPerLine,
-                    delayIncreasePerLine: delayIncreasePerLine
-                )
-            return LyricFocusCascadeLineTiming(
-                delay: delay,
-                duration: max(
-                    catchUpCompletionTime - delay,
-                    minimumCatchUpDuration
-                )
-            )
-        }
-    }
-
-    private static func accumulatedFocusCascadeDelay(
-        lineOrder: Int,
-        delayPerLine: TimeInterval,
-        delayIncreasePerLine: TimeInterval
-    ) -> TimeInterval {
-        let order = Double(max(lineOrder, 0))
-        let accumulatedIncrease = order * max(order - 1, 0) / 2
-        return order * delayPerLine
-            + accumulatedIncrease * delayIncreasePerLine
     }
 
     static func remainingFocusDuration(

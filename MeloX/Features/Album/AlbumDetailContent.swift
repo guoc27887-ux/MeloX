@@ -9,6 +9,7 @@ struct AlbumDetailContent: View {
     let isLoading: Bool
     let failureMessage: String?
     let isSubscribed: Bool
+    let downloadCoordinator: MusicCollectionDownloadCoordinator?
     let onToggleSubscription: () -> Void
     let onRetry: () -> Void
     let onRefresh: () async -> Void
@@ -37,9 +38,10 @@ struct AlbumDetailContent: View {
                         tracks: filteredTracks,
                         sourceID: album.id,
                         showsArtwork: false,
-                        loadingTitle: "正在载入专辑",
+                        loadingTitle: L10n.string("ui.album.loading"),
                         isLoading: isLoading,
                         failureMessage: failureMessage,
+                        downloadSelection: downloadCoordinator,
                         onRetry: onRetry
                     )
                 }
@@ -54,15 +56,18 @@ struct AlbumDetailContent: View {
     }
 
     private var metadataText: String {
-        var components = [album.type?.nonemptyAlbumMetadata ?? "专辑"]
+        var components = [album.type?.nonemptyAlbumMetadata ?? L10n.string("ui.common.album")]
         if let publishTime = album.publishTime {
             let date = Date(timeIntervalSince1970: publishTime / 1_000)
             let year = Calendar.current.component(.year, from: date)
-            components.append("\(year)年")
+            components.append(L10n.format("ui.common.year", year))
         }
         let count = songs.isEmpty ? (album.size ?? 0) : songs.count
-        components.append("\(count) 首歌曲")
-        return components.joined(separator: " · ")
+        components.append(L10n.format("ui.common.song_count", count))
+        return L10n.joined(
+            components,
+            separatorKey: "ui.common.metadata_separator"
+        )
     }
 
     private var filteredTracks: [Song] {

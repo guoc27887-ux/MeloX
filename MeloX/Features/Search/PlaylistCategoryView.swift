@@ -13,7 +13,12 @@ struct PlaylistCategoryView: View {
         Group {
             switch phase {
             case .loading where playlists.isEmpty:
-                ProgressView("正在载入\(category)歌单")
+                ProgressView(
+                    L10n.format(
+                        "ui.playlists.loading_category",
+                        localizedPlaylistCategory(category)
+                    )
+                )
             case .failed(let message) where playlists.isEmpty:
                 ConnectionUnavailableView(message: message) {
                     reloadToken += 1
@@ -56,7 +61,7 @@ struct PlaylistCategoryView: View {
                 }
             }
         }
-        .navigationTitle(category)
+        .navigationTitle(localizedPlaylistCategory(category))
         .task(id: reloadToken) {
             guard playlists.isEmpty else { return }
             await load()

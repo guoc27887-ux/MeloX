@@ -7,10 +7,19 @@ struct PlaylistDetailView: View {
 
     @Environment(NeteaseAPI.self) private var api
     @Environment(LibraryStore.self) private var library
+    @Environment(PlayerStore.self) private var player
+    @Environment(DownloadStore.self) private var downloads
+    @Environment(AppSettings.self) private var settings
     @Environment(\.colorScheme) private var systemColorScheme
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
+    @Environment(\.setTabViewBottomAccessorySuppressed)
+    private var setTabViewBottomAccessorySuppressed
 
     @State private var playlist: Playlist?
+    @State private var pendingRemoval: Song?
+    @State private var isRemovingTrack = false
+    @State private var removalError: String?
+
     @State private var phase: LoadingPhase = .loading
     @State private var reloadToken = 0
     @State private var artworkPalette: ArtworkDetailPalette?
@@ -19,6 +28,10 @@ struct PlaylistDetailView: View {
     @State private var loadedTrackOffset = 0
     @State private var isLoadingMoreTracks = false
     @State private var loadMoreTracksError: String?
+    @State private var isPreparingPlayback = false
+    @State private var playbackErrorMessage: String?
+    @State private var downloadCoordinator =
+        MusicCollectionDownloadCoordinator()
 
     private let trackPageSize = 100
 
@@ -61,23 +74,94 @@ struct PlaylistDetailView: View {
             loadedTrackOffset: loadedTrackOffset,
             isLoadingMoreTracks: isLoadingMoreTracks,
             loadMoreTracksError: loadMoreTracksError,
+            isPreparingPlayback: isPreparingPlayback,
+            downloadCoordinator:
+                downloadsEnabled
+                    ? downloadCoordinator
+                    : nil,
             onRetry: { reloadToken += 1 },
             onRefresh: { await load() },
-            onLoadMore: { await loadMoreTracks() }
+            onLoadMore: { await loadMoreTracks() },
+            onPlayAll: { shuffled in
+                await playAll(shuffled: shuffled)
+            },
+            onRemoveSong: library.canDelete(displayedPlaylist) && !isLoadingMoreTracks
+                ? { pendingRemoval = $0 }
+                : nil
         )
+        .disabled(isRemovingTrack)
+        .confirmationDialog(
+            "ui.playlists.remove_song",
+            isPresented: Binding(
+                get: { pendingRemoval != nil },
+                set: { if !$0 { pendingRemoval = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: pendingRemoval
+        ) { song in
+            Button("ui.playlists.remove_song", role: .destructive) {
+                Task { await removeSong(song) }
+            }
+            Button("ui.common.cancel", role: .cancel) {}
+        } message: { song in
+            Text(L10n.format("ui.playlists.remove_song.message", song.name))
+        }
+        .alert("ui.library.error.title", isPresented: Binding(
+            get: { removalError != nil },
+            set: { if !$0 { removalError = nil } }
+        )) {
+            Button("ui.common.ok", role: .cancel) { removalError = nil }
+        } message: {
+            Text(removalError ?? "")
+        }
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .searchable(
             text: $searchQuery,
             placement: .navigationBarDrawer(displayMode: .always),
-            prompt: Text(prefersToplistLayout ? "在排行榜中搜索" : "在歌单中搜索")
+            prompt: Text(
+                prefersToplistLayout
+                    ? L10n.string("ui.toplists.search_prompt")
+                    : L10n.string("ui.playlists.search_prompt")
+            )
         )
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbarColorScheme(interfaceColorScheme, for: .navigationBar, .tabBar)
         .toolbar {
-            playlistToolbar(for: displayedPlaylist)
+            if downloadsEnabled,
+               downloadCoordinator.isSelecting {
+                downloadSelectionToolbar
+            } else {
+                playlistToolbar(for: displayedPlaylist)
+            }
         }
+        .toolbarVisibility(
+            downloadsEnabled
+                && downloadCoordinator.isSelecting
+                ? .hidden
+                : .automatic,
+            for: .tabBar
+        )
         .environment(\.colorScheme, interfaceColorScheme)
+        .onAppear {
+            updateTabViewBottomAccessoryVisibility()
+        }
+        .onChange(of: downloadCoordinator.isSelecting) {
+            updateTabViewBottomAccessoryVisibility()
+        }
+        .onChange(of: downloadsEnabled) { _, isEnabled in
+            if !isEnabled {
+                downloadCoordinator.finishSelection()
+            }
+            updateTabViewBottomAccessoryVisibility()
+        }
+        .onDisappear {
+            setTabViewBottomAccessorySuppressed(false)
+        }
+        .onChange(of: downloadableSongIDs) { _, songIDs in
+            guard downloadCoordinator.isSelecting else { return }
+            downloadCoordinator.retainSelection(in: Set(songIDs))
+        }
         .task(id: reloadToken) {
             guard playlist == nil else { return }
             await load(waitingForNavigationTransition: true)
@@ -108,7 +192,7 @@ struct PlaylistDetailView: View {
             }
         }
         .alert(
-            "音乐库操作失败",
+            "ui.library.error.title",
             isPresented: Binding(
                 get: { library.errorMessage != nil },
                 set: { isPresented in
@@ -118,11 +202,51 @@ struct PlaylistDetailView: View {
                 }
             )
         ) {
-            Button("好", role: .cancel) {
+            Button("ui.common.ok", role: .cancel) {
                 library.clearError()
             }
         } message: {
-            Text(library.errorMessage ?? "未知错误")
+            Text(library.errorMessage ?? L10n.string("ui.common.unknown_error"))
+        }
+        .alert(
+            "ui.downloads.prepare_failed",
+            isPresented: Binding(
+                get: {
+                    downloadsEnabled
+                        && downloadCoordinator.errorMessage != nil
+                },
+                set: { isPresented in
+                    if !isPresented {
+                        downloadCoordinator.clearError()
+                    }
+                }
+            )
+        ) {
+            Button("ui.common.ok", role: .cancel) {
+                downloadCoordinator.clearError()
+            }
+        } message: {
+            Text(
+                downloadCoordinator.errorMessage
+                    ?? L10n.format("ui.music_collection.load_songs_failed", collectionTitle)
+            )
+        }
+        .alert(
+            "ui.library.play_all_failed",
+            isPresented: Binding(
+                get: { playbackErrorMessage != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        playbackErrorMessage = nil
+                    }
+                }
+            )
+        ) {
+            Button("ui.common.ok", role: .cancel) {
+                playbackErrorMessage = nil
+            }
+        } message: {
+            Text(playbackErrorMessage ?? L10n.string("ui.playlists.load_complete_failed"))
         }
     }
 
@@ -130,8 +254,18 @@ struct PlaylistDetailView: View {
         playlist ?? initialPlaylist
     }
 
+    private var downloadsEnabled: Bool {
+        settings.isContentFeatureEnabled(.downloads)
+    }
+
     private var artworkURL: URL? {
         displayedPlaylist.artworkURL ?? initialPlaylist.artworkURL
+    }
+
+    private var collectionTitle: String {
+        prefersToplistLayout
+            ? L10n.string("ui.toplists.title")
+            : L10n.string("ui.common.playlist")
     }
 
     private var resolvedPalette: ArtworkDetailPalette {
@@ -169,22 +303,66 @@ struct PlaylistDetailView: View {
         return loadedTrackOffset < playlist.trackIDs.count
     }
 
+    private var downloadableSongIDs: [Int] {
+        guard downloadsEnabled,
+              let playlist else { return [] }
+        let unavailableSongIDs = Set(downloads.downloads.map(\.id))
+            .union(downloads.activeDownloads.keys)
+        return MusicCollectionDownloadCoordinator.songIDs(
+            in: playlist
+        )
+        .filter { !unavailableSongIDs.contains($0) }
+    }
+
+    private func updateTabViewBottomAccessoryVisibility() {
+        setTabViewBottomAccessorySuppressed(
+            downloadsEnabled
+                && downloadCoordinator.isSelecting
+        )
+    }
+
     @ToolbarContentBuilder
     private func playlistToolbar(for playlist: Playlist) -> some ToolbarContent {
         ToolbarItemGroup(placement: .topBarTrailing) {
+            if downloadsEnabled,
+               downloadCoordinator.isPreparing {
+                ProgressView()
+                    .accessibilityLabel(
+                        L10n.format(
+                            "ui.downloads.preparing_song_count",
+                            downloadCoordinator.preparingSongCount
+                        )
+                    )
+            }
+
             Menu {
                 NeteaseShareMenuContent(resource: .playlist(playlist))
             } label: {
                 Image(systemName: "square.and.arrow.up")
             }
-            .accessibilityLabel("分享歌单")
+            .accessibilityLabel(L10n.format("ui.common.share_named", collectionTitle))
 
             Menu {
+                if downloadsEnabled {
+                    MusicCollectionDownloadMenuContent(
+                        coordinator: downloadCoordinator,
+                        downloadableSongCount:
+                            downloadableSongIDs.count,
+                        onDownloadAll: { quality in
+                            startDownloadAll(quality: quality)
+                        }
+                    )
+
+                    Divider()
+                }
+
                 Button {
                     library.toggle(playlist: playlist)
                 } label: {
                     Label(
-                        library.contains(playlist: playlist) ? "取消收藏" : "收藏歌单",
+                        library.contains(playlist: playlist)
+                            ? L10n.string("ui.common.unfavorite")
+                            : L10n.string("ui.playlists.favorite"),
                         systemImage: library.contains(playlist: playlist) ? "checkmark" : "plus"
                     )
                 }
@@ -192,14 +370,51 @@ struct PlaylistDetailView: View {
                 Button {
                     Task { await load() }
                 } label: {
-                    Label("刷新", systemImage: "arrow.clockwise")
+                    Label("ui.common.refresh", systemImage: "arrow.clockwise")
                 }
             } label: {
                 Image(systemName: "ellipsis")
             }
-            .accessibilityLabel("更多")
+            .accessibilityLabel("ui.common.more")
         }
         .sharedBackgroundVisibility(.visible)
+    }
+
+    @ToolbarContentBuilder
+    private var downloadSelectionToolbar: some ToolbarContent {
+        MusicCollectionDownloadSelectionToolbar(
+            coordinator: downloadCoordinator,
+            downloadableSongIDs: downloadableSongIDs,
+            onDownloadSelection: { quality in
+                startSelectedDownloads(quality: quality)
+            }
+        )
+    }
+
+    private func startDownloadAll(quality: MusicQuality) {
+        guard downloadsEnabled,
+              let playlist else { return }
+        Task {
+            await downloadCoordinator.downloadAll(
+                in: playlist,
+                quality: quality,
+                api: api,
+                downloads: downloads
+            )
+        }
+    }
+
+    private func startSelectedDownloads(quality: MusicQuality) {
+        guard downloadsEnabled,
+              let playlist else { return }
+        Task {
+            await downloadCoordinator.downloadSelection(
+                in: playlist,
+                quality: quality,
+                api: api,
+                downloads: downloads
+            )
+        }
     }
 
     private func load(
@@ -232,9 +447,26 @@ struct PlaylistDetailView: View {
         }
     }
 
+    private func removeSong(_ song: Song) async {
+        guard let playlist, !isLoadingMoreTracks else { return }
+        isRemovingTrack = true
+        defer { isRemovingTrack = false }
+        do {
+            try await library.remove(song: song, from: playlist)
+            guard var updated = self.playlist else { return }
+            if let index = updated.removeSong(id: song.id), index < loadedTrackOffset {
+                loadedTrackOffset -= 1
+            }
+            self.playlist = updated
+        } catch {
+            removalError = error.localizedDescription
+        }
+    }
+
     private func loadMoreTracks() async {
         guard let currentPlaylist = playlist,
               !isLoadingMoreTracks,
+              !isRemovingTrack,
               loadedTrackOffset < currentPlaylist.trackIDs.count else {
             return
         }
@@ -272,6 +504,39 @@ struct PlaylistDetailView: View {
             return
         } catch {
             loadMoreTracksError = error.localizedDescription
+        }
+    }
+
+    private func playAll(shuffled: Bool) async {
+        guard let currentPlaylist = playlist,
+              !isPreparingPlayback else {
+            return
+        }
+
+        isPreparingPlayback = true
+        playbackErrorMessage = nil
+        defer { isPreparingPlayback = false }
+
+        do {
+            let trackIDs = currentPlaylist.trackIDs.map(\.id)
+            let songs = if trackIDs.isEmpty {
+                currentPlaylist.tracks
+            } else {
+                try await api.songDetailsCollection(
+                    ids: trackIDs,
+                    prefetched: currentPlaylist.tracks
+                )
+            }
+            try Task.checkCancellation()
+            guard playlist?.id == currentPlaylist.id else { return }
+            await player.playAll(
+                shuffled ? songs.shuffled() : songs,
+                sourceID: currentPlaylist.id
+            )
+        } catch is CancellationError {
+            return
+        } catch {
+            playbackErrorMessage = error.localizedDescription
         }
     }
 

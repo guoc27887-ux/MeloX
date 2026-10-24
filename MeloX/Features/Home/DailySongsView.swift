@@ -8,12 +8,14 @@ struct DailySongsView: View {
     @State private var songs: [Song] = []
     @State private var phase: LoadingPhase = .loading
     @State private var reloadToken = 0
+    @State private var isRefreshing = false
+    @State private var refreshErrorMessage: String?
 
     var body: some View {
         Group {
             switch phase {
             case .loading:
-                ProgressView("正在载入每日推荐")
+                ProgressView("ui.home.daily_songs.loading")
             case .failed(let message):
                 ConnectionUnavailableView(message: message) {
                     reloadToken += 1
@@ -21,12 +23,45 @@ struct DailySongsView: View {
             case .loaded:
                 List {
                     Section {
-                        Button {
-                            Task { await player.playAll(songs) }
-                        } label: {
-                            Label("播放全部", systemImage: "play.fill")
+                        HStack {
+                            Button {
+                                Task { await player.playAll(songs) }
+                            } label: {
+                                Label("ui.common.play_all", systemImage: "play.fill")
+                                    .font(.headline)
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(songs.isEmpty)
+
+                            Spacer()
+
+                            Button {
+                                Task { await refresh() }
+                            } label: {
+                                HStack(spacing: 6) {
+                                    if isRefreshing {
+                                        ProgressView()
+                                            .controlSize(.small)
+                                    } else {
+                                        Image(systemName: "arrow.triangle.2.circlepath")
+                                    }
+
+                                    Text(
+                                        isRefreshing
+                                            ? L10n.string("ui.home.daily_songs.refreshing")
+                                            : L10n.string("ui.home.daily_songs.refresh")
+                                    )
+                                }
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(isRefreshing)
+                            .accessibilityLabel(
+                                isRefreshing
+                                    ? L10n.string("ui.home.daily_songs.refreshing_accessibility")
+                                    : L10n.string("ui.home.daily_songs.refresh_accessibility")
+                            )
+                            .accessibilityHint("ui.home.daily_songs.refresh_hint")
                         }
-                        .disabled(songs.isEmpty)
                     }
                     ForEach(Array(songs.enumerated()), id: \.element.id) { index, song in
                         Button {
@@ -39,7 +74,12 @@ struct DailySongsView: View {
                             Button {
                                 library.toggle(song: song)
                             } label: {
-                                Label("收藏", systemImage: library.contains(song: song) ? "heart.slash" : "heart")
+                                Label(
+                                    library.contains(song: song)
+                                        ? L10n.string("ui.common.unfavorite")
+                                        : L10n.string("ui.common.favorite"),
+                                    systemImage: library.contains(song: song) ? "heart.slash" : "heart"
+                                )
                             }
                             .tint(.pink)
                         }
@@ -48,10 +88,27 @@ struct DailySongsView: View {
                 .listStyle(.plain)
             }
         }
-        .navigationTitle("每日推荐")
+        .navigationTitle("ui.home.action.daily_songs")
         .task(id: reloadToken) {
             guard phase != .loaded else { return }
             await load()
+        }
+        .alert(
+            "ui.home.daily_songs.refresh_failed",
+            isPresented: Binding(
+                get: { refreshErrorMessage != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        refreshErrorMessage = nil
+                    }
+                }
+            )
+        ) {
+            Button("ui.common.ok", role: .cancel) {
+                refreshErrorMessage = nil
+            }
+        } message: {
+            Text(refreshErrorMessage ?? L10n.string("ui.error.try_again_later"))
         }
     }
 
@@ -64,6 +121,22 @@ struct DailySongsView: View {
             return
         } catch {
             phase = .failed(error.localizedDescription)
+        }
+    }
+
+    private func refresh() async {
+        guard !isRefreshing else { return }
+        isRefreshing = true
+        defer { isRefreshing = false }
+
+        do {
+            let refreshedSongs = try await api.dailySongs(afresh: true)
+            try Task.checkCancellation()
+            songs = refreshedSongs
+        } catch is CancellationError {
+            return
+        } catch {
+            refreshErrorMessage = error.localizedDescription
         }
     }
 }

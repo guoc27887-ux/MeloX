@@ -77,14 +77,20 @@ private struct AccountProfileDetailHero: View {
             }
 
             if let detail {
-                Text("Lv.\(detail.level) · 累计听歌 \(detail.listenSongs.formatted()) 首")
+                Text(
+                    L10n.format(
+                        "ui.account.level_listen_count",
+                        detail.level,
+                        detail.listenSongs
+                    )
+                )
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .padding(.top, 7)
             }
 
-            Text("用户 ID \(profile.id.formatted())")
+            Text(L10n.format("ui.account.user_id", profile.id))
                 .font(.caption)
                 .foregroundStyle(.tertiary)
                 .padding(.top, 5)
@@ -95,6 +101,15 @@ private struct AccountProfileDetailHero: View {
                 playlistCount: profile.playlistCount ?? playlistCount
             )
             .padding(.top, 20)
+
+            NavigationLink {
+                UserListeningRankView(userID: profile.id)
+            } label: {
+                Label("ui.library.my_listening_rank", systemImage: "chart.bar.xaxis")
+            }
+            .buttonStyle(.bordered)
+            .padding(.top, 14)
+            .accessibilityHint("ui.library.my_listening_rank.hint")
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 26)
@@ -109,13 +124,13 @@ private struct AccountProfileMetrics: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            metric(value: follows, title: "关注")
+            metric(value: follows, title: L10n.string("ui.account.following"))
             Divider()
                 .frame(height: 30)
-            metric(value: followers, title: "粉丝")
+            metric(value: followers, title: L10n.string("ui.account.followers"))
             Divider()
                 .frame(height: 30)
-            metric(value: playlistCount, title: "歌单")
+            metric(value: playlistCount, title: L10n.string("ui.common.playlists"))
         }
         .frame(maxWidth: 340)
         .padding(.vertical, 12)
@@ -126,7 +141,7 @@ private struct AccountProfileMetrics: View {
 
     private func metric(value: Int?, title: String) -> some View {
         VStack(spacing: 3) {
-            Text(value?.formatted() ?? "—")
+            Text(value?.formatted(.number.locale(L10n.locale)) ?? "—")
                 .font(.headline)
                 .monospacedDigit()
             Text(title)
@@ -146,9 +161,9 @@ private struct AccountPlaylistContent: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(alignment: .firstTextBaseline) {
-                Text("歌单")
+                Text("ui.common.playlists")
                     .font(.title3.weight(.bold))
-                Text(playlists.count.formatted())
+                Text(playlists.count.formatted(.number.locale(L10n.locale)))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -175,7 +190,7 @@ private struct AccountPlaylistContent: View {
     @ViewBuilder
     private var emptyContent: some View {
         if isLoading {
-            ProgressView("正在读取歌单")
+            ProgressView("ui.playlists.loading")
                 .tint(.primary)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, minHeight: 180)
@@ -186,7 +201,7 @@ private struct AccountPlaylistContent: View {
             )
             .frame(maxWidth: .infinity, minHeight: 220)
         } else {
-            ContentUnavailableView("暂无歌单", systemImage: "music.note.list")
+            ContentUnavailableView("ui.playlists.empty", systemImage: "music.note.list")
                 .frame(maxWidth: .infinity, minHeight: 180)
         }
     }
@@ -224,7 +239,7 @@ private struct AccountPlaylistRow: View {
                     .font(.body)
                     .lineLimit(2)
 
-                Text("\(playlist.trackCount.formatted()) 首歌曲")
+                Text(L10n.format("ui.common.song_count", playlist.trackCount))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -246,14 +261,14 @@ private struct AccountRefreshFailureRow: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            Label("部分主页内容未能更新", systemImage: "wifi.exclamationmark")
+            Label("ui.account.partial_content_failed", systemImage: "wifi.exclamationmark")
                 .font(.subheadline.weight(.medium))
             Text(message)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
-            Button("重新载入", action: onRetry)
+            Button("ui.common.reload", action: onRetry)
                 .buttonStyle(.bordered)
         }
         .frame(maxWidth: .infinity)

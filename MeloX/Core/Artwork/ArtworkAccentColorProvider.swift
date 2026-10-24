@@ -20,6 +20,7 @@ struct ArtworkDetailPalette: Equatable, Sendable {
 
 struct ArtworkDetailAssets: @unchecked Sendable {
     let palette: ArtworkDetailPalette
+    let flowingLightPalette: ArtworkFlowingLightPalette
     let blurredBackdropImage: CGImage?
 
     nonisolated static func fallback(prefersDarkAppearance: Bool) -> Self {
@@ -27,6 +28,7 @@ struct ArtworkDetailAssets: @unchecked Sendable {
             palette: .fallback(
                 prefersDarkAppearance: prefersDarkAppearance
             ),
+            flowingLightPalette: .fallback,
             blurredBackdropImage: nil
         )
     }
@@ -62,6 +64,10 @@ private nonisolated final class ArtworkDetailAssetsCache: @unchecked Sendable {
             cost: pixelCost
         )
     }
+
+    func removeAll() {
+        storage.removeAllObjects()
+    }
 }
 
 actor ArtworkAccentColorProvider {
@@ -77,6 +83,10 @@ actor ArtworkAccentColorProvider {
     ) -> ArtworkDetailAssets? {
         guard let artworkURL else { return nil }
         return assetsCache.assets(for: artworkURL)
+    }
+
+    nonisolated static func clearCache() {
+        assetsCache.removeAll()
     }
 
     func accentColor(for artworkURL: URL?) async -> SIMD3<Double> {
@@ -129,6 +139,10 @@ actor ArtworkAccentColorProvider {
                 palette: makeDetailPalette(
                     from: averageColor(of: preparedImage)
                 ),
+                flowingLightPalette:
+                    makeFlowingLightPalette(
+                        from: preparedImage
+                    ),
                 blurredBackdropImage: makeBlurredBackdrop(
                     from: preparedImage
                 )
@@ -190,9 +204,19 @@ actor ArtworkAccentColorProvider {
     }
 
     private func averageColor(of image: CIImage) -> SIMD3<Double> {
+        averageColor(
+            of: image,
+            extent: image.extent
+        )
+    }
+
+    private func averageColor(
+        of image: CIImage,
+        extent: CGRect
+    ) -> SIMD3<Double> {
         let filter = CIFilter.areaAverage()
         filter.inputImage = image
-        filter.extent = image.extent
+        filter.extent = extent
         guard let outputImage = filter.outputImage else { return Self.fallback }
 
         var pixel = [UInt8](repeating: 0, count: 4)
@@ -209,6 +233,40 @@ actor ArtworkAccentColorProvider {
             Double(pixel[0]) / 255,
             Double(pixel[1]) / 255,
             Double(pixel[2]) / 255
+        )
+    }
+
+    private func makeFlowingLightPalette(
+        from image: CIImage
+    ) -> ArtworkFlowingLightPalette {
+        let extent = image.extent.integral
+        guard !extent.isEmpty, !extent.isInfinite else {
+            return .fallback
+        }
+
+        let dimension =
+            ArtworkFlowingLightPalette.gridDimension
+        let cellWidth = extent.width / CGFloat(dimension)
+        let cellHeight = extent.height / CGFloat(dimension)
+        let colors = (0..<dimension).flatMap { row in
+            (0..<dimension).map { column in
+                let cell = CGRect(
+                    x: extent.minX
+                        + CGFloat(column) * cellWidth,
+                    y: extent.minY
+                        + CGFloat(dimension - row - 1)
+                            * cellHeight,
+                    width: cellWidth,
+                    height: cellHeight
+                )
+                return averageColor(
+                    of: image,
+                    extent: cell
+                )
+            }
+        }
+        return ArtworkFlowingLightPalette(
+            colorsRGB: colors
         )
     }
 

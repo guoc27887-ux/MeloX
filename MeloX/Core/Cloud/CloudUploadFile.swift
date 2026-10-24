@@ -40,8 +40,8 @@ struct CloudUploadFile: Sendable {
             size: Int64(fileSize),
             md5: md5,
             songName: metadata.title ?? fallbackName,
-            artist: metadata.artist ?? "未知艺术家",
-            album: metadata.album ?? "未知专辑"
+            artist: metadata.artist ?? L10n.string("ui.metadata.unknown_artist"),
+            album: metadata.album ?? L10n.string("ui.metadata.unknown_album")
         )
     }
 
@@ -76,9 +76,9 @@ enum CloudUploadError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidFile:
-            "所选文件不是可上传的音频文件。"
+            L10n.string("ui.error.cloud.invalid_audio_file")
         case .noUploadServer:
-            "网易云音乐暂时没有返回可用的上传服务器。"
+            L10n.string("ui.error.cloud.no_upload_server")
         }
     }
 }

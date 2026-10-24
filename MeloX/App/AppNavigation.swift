@@ -89,6 +89,10 @@ enum MusicRoute: Hashable {
     case playlistCategory(String)
     case album(AlbumRouteContext)
     case artist(Int)
+    case podcasts
+    case podcast(Podcast)
+    case podcastCategory(PodcastCategory)
+    case podcastProgram(PodcastProgram)
     case dailySongs
     case newAlbums
     case toplists
@@ -109,7 +113,14 @@ enum MusicRoute: Hashable {
         switch self {
         case .song, .playlist, .toplist, .album, .artist:
             true
-        case .playlistCategory, .dailySongs, .newAlbums, .toplists:
+        case .playlistCategory,
+             .podcasts,
+             .podcast,
+             .podcastCategory,
+             .podcastProgram,
+             .dailySongs,
+             .newAlbums,
+             .toplists:
             false
         }
     }
@@ -128,6 +139,14 @@ enum MusicRoute: Hashable {
             "album-\(context.id)"
         case .artist(let id):
             "artist-\(id)"
+        case .podcasts:
+            "podcasts"
+        case .podcast(let podcast):
+            "podcast-\(podcast.id)"
+        case .podcastCategory(let category):
+            "podcast-category-\(category.id)"
+        case .podcastProgram(let program):
+            "podcast-program-\(program.id)"
         case .dailySongs:
             "daily-songs"
         case .newAlbums:
@@ -143,9 +162,15 @@ enum MusicRoute: Hashable {
             context.coverURLString.flatMap(URL.init(string:))
         case .album(let context):
             context.picURL.flatMap(URL.init(string:))
+        case .podcast(let podcast):
+            podcast.artworkURL
+        case .podcastProgram(let program):
+            program.artworkURL
         case .song,
              .artist,
              .playlistCategory,
+             .podcasts,
+             .podcastCategory,
              .dailySongs,
              .newAlbums,
              .toplists:
@@ -174,6 +199,37 @@ extension EnvironmentValues {
     var openMusicRoute: OpenMusicRouteAction {
         get { self[OpenMusicRouteActionKey.self] }
         set { self[OpenMusicRouteActionKey.self] = newValue }
+    }
+}
+
+struct SetTabViewBottomAccessorySuppressedAction {
+    private let action: (Bool) -> Void
+
+    init(action: @escaping (Bool) -> Void = { _ in }) {
+        self.action = action
+    }
+
+    func callAsFunction(_ isSuppressed: Bool) {
+        action(isSuppressed)
+    }
+}
+
+private struct SetTabViewBottomAccessorySuppressedActionKey:
+    EnvironmentKey {
+    static let defaultValue =
+        SetTabViewBottomAccessorySuppressedAction()
+}
+
+extension EnvironmentValues {
+    var setTabViewBottomAccessorySuppressed:
+        SetTabViewBottomAccessorySuppressedAction {
+        get {
+            self[SetTabViewBottomAccessorySuppressedActionKey.self]
+        }
+        set {
+            self[SetTabViewBottomAccessorySuppressedActionKey.self] =
+                newValue
+        }
     }
 }
 
@@ -210,6 +266,14 @@ private struct MusicRouteDestination: View {
             AlbumDetailView(context: context)
         case .artist(let id):
             ArtistDetailView(id: id)
+        case .podcasts:
+            PodcastHomeView()
+        case .podcast(let podcast):
+            PodcastDetailView(podcast: podcast)
+        case .podcastCategory(let category):
+            PodcastCategoryView(category: category)
+        case .podcastProgram(let program):
+            PodcastProgramDetailView(program: program)
         case .dailySongs:
             DailySongsView()
         case .newAlbums:

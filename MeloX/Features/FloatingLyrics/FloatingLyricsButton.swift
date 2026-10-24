@@ -27,8 +27,10 @@ struct FloatingLyricsButton: View {
                 || (!floatingLyrics.isActive && !floatingLyrics.isPossible)
         )
         .accessibilityLabel(
-            floatingLyrics.isActive ? "关闭悬浮歌词" : "打开悬浮歌词"
+            floatingLyrics.isActive
+                ? L10n.string("ui.floating_lyrics.close")
+                : L10n.string("ui.floating_lyrics.open")
         )
-        .accessibilityHint("使用系统画中画显示同步歌词")
+        .accessibilityHint("ui.floating_lyrics.picture_in_picture_hint")
     }
 }

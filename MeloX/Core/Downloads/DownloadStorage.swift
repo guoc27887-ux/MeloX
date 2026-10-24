@@ -9,14 +9,10 @@ final class DownloadStorage {
         directoryURL: URL? = nil
     ) {
         self.fileManager = fileManager
-        let applicationSupportURL = fileManager.urls(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask
-        ).first ?? fileManager.temporaryDirectory
         self.directoryURL = directoryURL
-            ?? applicationSupportURL
-                .appending(path: "MeloX", directoryHint: .isDirectory)
-                .appending(path: "Downloads", directoryHint: .isDirectory)
+            ?? AppStorageLocations.downloadsDirectory(
+                fileManager: fileManager
+            )
     }
 
     func installDownloadedFile(
@@ -54,6 +50,42 @@ final class DownloadStorage {
         try fileManager.removeItem(at: directoryURL)
     }
 
+    @discardableResult
+    func removeUntrackedFiles(
+        keeping fileNames: Set<String>
+    ) throws -> Int64 {
+        guard fileManager.fileExists(
+            atPath: directoryURL.path
+        ) else {
+            return 0
+        }
+        let contents = try fileManager.contentsOfDirectory(
+            at: directoryURL,
+            includingPropertiesForKeys: [
+                .fileSizeKey,
+                .totalFileAllocatedSizeKey,
+            ],
+            options: [.skipsHiddenFiles]
+        )
+        var removedByteCount = Int64(0)
+        for url in contents
+        where !fileNames.contains(url.lastPathComponent) {
+            let values = try? url.resourceValues(
+                forKeys: [
+                    .fileSizeKey,
+                    .totalFileAllocatedSizeKey,
+                ]
+            )
+            removedByteCount += Int64(
+                values?.totalFileAllocatedSize
+                    ?? values?.fileSize
+                    ?? 0
+            )
+            try fileManager.removeItem(at: url)
+        }
+        return removedByteCount
+    }
+
     func containsFile(named fileName: String) -> Bool {
         fileManager.fileExists(atPath: fileURL(fileName: fileName).path)
     }
@@ -88,9 +120,9 @@ enum DownloadError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidResponse:
-            "歌曲下载服务返回了无效响应。"
+            L10n.string("ui.error.download.invalid_response")
         case .emptyFile:
-            "下载完成的歌曲文件为空。"
+            L10n.string("ui.error.download.empty_file")
         }
     }
 }

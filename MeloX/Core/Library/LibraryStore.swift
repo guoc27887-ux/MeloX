@@ -8,11 +8,20 @@ final class LibraryStore {
     private(set) var accountDetail: AccountDetail?
     private(set) var favoriteSongs: [Song] = []
     private(set) var favoritePlaylists: [Playlist] = []
+    private(set) var favoriteAlbums: [Album] = []
+    private(set) var favoriteArtists: [Artist] = []
+    private(set) var subscribedPodcasts: [Podcast] = []
     private(set) var recentSongs: [Song] = []
+    private(set) var likedPlaylistID: Int?
     private(set) var favoriteSongTotalCount = 0
     private(set) var favoriteSongsNextOffset = 0
     private(set) var isLoadingMoreFavoriteSongs = false
     private(set) var favoriteSongsLoadMoreError: String?
+    private(set) var subscribedPodcastTotalCount = 0
+    private(set) var subscribedPodcastsNextOffset = 0
+    private(set) var hasMoreSubscribedPodcasts = false
+    private(set) var isLoadingMoreSubscribedPodcasts = false
+    private(set) var subscribedPodcastsLoadMoreError: String?
     private(set) var phase: LoadingPhase = .loaded
     private(set) var errorMessage: String?
 
@@ -37,6 +46,21 @@ final class LibraryStore {
     @ObservationIgnored
     private let favoriteSongPageSize = 100
 
+    @ObservationIgnored
+    private var favoriteSongPageLoadTask: Task<Void, Never>?
+
+    @ObservationIgnored
+    private var favoriteSongPageLoadID: UUID?
+
+    @ObservationIgnored
+    private let subscribedPodcastPageSize = 50
+
+    @ObservationIgnored
+    private var subscribedPodcastPageLoadTask: Task<Void, Never>?
+
+    @ObservationIgnored
+    private var subscribedPodcastPageLoadID: UUID?
+
     init(api: NeteaseAPI, settings: AppSettings) {
         self.api = api
         self.settings = settings
@@ -55,6 +79,14 @@ final class LibraryStore {
         favoriteSongsNextOffset < favoriteSongTotalCount
     }
 
+    var canStartHeartMode: Bool {
+        likedPlaylistID != nil && favoriteSongTotalCount > 0
+    }
+
+    func randomHeartModeSeedSongID() -> Int? {
+        favoriteSongIDs.randomElement()
+    }
+
     func contains(song: Song) -> Bool {
         favoriteSongIDSet.contains(song.id)
     }
@@ -63,7 +95,43 @@ final class LibraryStore {
         favoritePlaylists.contains { $0.id == playlist.id }
     }
 
+    func contains(artist: Artist) -> Bool {
+        favoriteArtists.contains { $0.id == artist.id }
+    }
+
+    func contains(album: Album) -> Bool {
+        favoriteAlbums.contains { $0.id == album.id }
+    }
+
+    func setArtistFollowed(_ artist: Artist, isFollowed: Bool) async throws {
+        guard isLoggedIn else { throw APIError.notLoggedIn }
+        try await api.setArtistFollowed(id: artist.id, isFollowed: isFollowed)
+        favoriteArtists.removeAll { $0.id == artist.id }
+        if isFollowed {
+            favoriteArtists.insert(artist, at: 0)
+        }
+    }
+
+    func setAlbumSubscribed(
+        _ album: Album,
+        isSubscribed: Bool
+    ) async throws {
+        guard isLoggedIn else { throw APIError.notLoggedIn }
+        try await api.setAlbumSubscribed(id: album.id, isSubscribed: isSubscribed)
+        favoriteAlbums.removeAll { $0.id == album.id }
+        if isSubscribed {
+            favoriteAlbums.insert(album, at: 0)
+        }
+    }
+
+    func contains(podcast: Podcast) -> Bool {
+        subscribedPodcasts.contains { $0.id == podcast.id }
+    }
+
     func recordRecentlyPlayed(_ song: Song) {
+        guard settings.isContentFeatureEnabled(.listeningHistory) else {
+            return
+        }
         recentSongs.removeAll { $0.id == song.id }
         recentSongs.insert(song, at: 0)
         if recentSongs.count > 100 {
@@ -96,6 +164,7 @@ final class LibraryStore {
         phase = .loading
         errorMessage = nil
         favoriteSongsLoadMoreError = nil
+        subscribedPodcastsLoadMoreError = nil
 
         do {
             let loadedProfile = try await api.accountProfile()
@@ -123,15 +192,62 @@ final class LibraryStore {
                 loadedPlaylists = try await api.userPlaylists(userID: loadedProfile.id)
                 // 网易云把“我喜欢的音乐”作为返回列表的第一项；参考项目
                 // 同样在歌单页隐藏这一项，歌曲页单独展示其中的歌曲。
+                likedPlaylistID = loadedPlaylists.first?.id
                 favoritePlaylists = Array(loadedPlaylists.dropFirst())
             } catch is CancellationError {
                 return
             } catch {
-                partialFailures.append("歌单：\(error.localizedDescription)")
+                partialFailures.append(L10n.format("ui.library.error.playlists", error.localizedDescription))
             }
 
             do {
-                let likedPlaylistID = loadedPlaylists.first?.id
+                let albums = try await api.subscribedAlbums()
+                try Task.checkCancellation()
+                favoriteAlbums = albums
+            } catch is CancellationError {
+                return
+            } catch {
+                partialFailures.append(
+                    L10n.format("ui.library.error.favorite_albums", error.localizedDescription)
+                )
+            }
+
+            do {
+                favoriteArtists = try await api.subscribedArtists()
+            } catch is CancellationError {
+                return
+            } catch {
+                partialFailures.append(
+                    L10n.format("ui.library.error.favorite_artists", error.localizedDescription)
+                )
+            }
+
+            if settings.isContentFeatureEnabled(.podcasts) {
+                do {
+                    let page = try await api.subscribedPodcasts(
+                        limit: subscribedPodcastPageSize
+                    )
+                    try Task.checkCancellation()
+                    subscribedPodcasts = normalizedSubscribedPodcasts(
+                        page.podcasts
+                    )
+                    subscribedPodcastTotalCount = max(
+                        page.totalCount ?? subscribedPodcasts.count,
+                        subscribedPodcasts.count
+                    )
+                    subscribedPodcastsNextOffset = page.podcasts.count
+                    hasMoreSubscribedPodcasts = page.hasMore
+                    subscribedPodcastsLoadMoreError = nil
+                } catch is CancellationError {
+                    return
+                } catch {
+                    partialFailures.append(
+                        L10n.format("ui.library.error.subscribed_podcasts", error.localizedDescription)
+                    )
+                }
+            }
+
+            do {
                 let loadedSongIDs = try await api.likedSongIDs(
                     userID: loadedProfile.id,
                     likedPlaylistID: likedPlaylistID
@@ -151,19 +267,26 @@ final class LibraryStore {
             } catch is CancellationError {
                 return
             } catch {
-                partialFailures.append("收藏歌曲：\(error.localizedDescription)")
+                partialFailures.append(L10n.format("ui.library.error.favorite_songs", error.localizedDescription))
             }
 
-            do {
-                recentSongs = try await api.recentSongs()
-            } catch is CancellationError {
-                return
-            } catch {
-                partialFailures.append("播放历史：\(error.localizedDescription)")
+            if settings.isContentFeatureEnabled(.listeningHistory) {
+                do {
+                    recentSongs = try await api.recentSongs()
+                } catch is CancellationError {
+                    return
+                } catch {
+                    partialFailures.append(
+                        L10n.format("ui.library.error.history", error.localizedDescription)
+                    )
+                }
             }
 
             if !partialFailures.isEmpty {
-                errorMessage = "部分音乐库内容暂时无法读取。\n" + partialFailures.joined(separator: "\n")
+                errorMessage = L10n.format(
+                    "ui.library.error.partial",
+                    partialFailures.joined(separator: "\n")
+                )
             }
             phase = .loaded
         } catch is CancellationError {
@@ -176,24 +299,75 @@ final class LibraryStore {
                 phase = .failed(error.localizedDescription)
             } else {
                 phase = .loaded
-                errorMessage = "账号刷新失败：\(error.localizedDescription)"
+                errorMessage = L10n.format("ui.library.error.account_refresh", error.localizedDescription)
             }
         }
     }
 
     func loadMoreFavoriteSongs() async {
-        guard !isLoadingMoreFavoriteSongs,
-              hasMoreFavoriteSongs else {
+        if let favoriteSongPageLoadTask {
+            await favoriteSongPageLoadTask.value
             return
         }
 
+        guard hasMoreFavoriteSongs else { return }
+
         let requestedOffset = favoriteSongsNextOffset
         let requestedIDs = favoriteSongIDs
+        let loadID = UUID()
+        let loadTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.loadFavoriteSongsPage(
+                ids: requestedIDs,
+                offset: requestedOffset
+            )
+        }
+        favoriteSongPageLoadID = loadID
+        favoriteSongPageLoadTask = loadTask
+
+        await loadTask.value
+
+        guard favoriteSongPageLoadID == loadID else { return }
+        favoriteSongPageLoadTask = nil
+        favoriteSongPageLoadID = nil
+    }
+
+    func loadRemainingFavoriteSongs() async {
+        while hasMoreFavoriteSongs {
+            guard !Task.isCancelled else { return }
+            let previousOffset = favoriteSongsNextOffset
+            await loadMoreFavoriteSongs()
+            guard favoriteSongsNextOffset > previousOffset else { return }
+        }
+    }
+
+    func favoriteSongsForPlayback() async throws -> [Song] {
+        if let favoriteSongPageLoadTask {
+            await favoriteSongPageLoadTask.value
+        }
+
+        let requestedIDs = favoriteSongIDs
+        let songs = try await api.songDetailsCollection(
+            ids: requestedIDs,
+            prefetched: favoriteSongs
+        )
+        try Task.checkCancellation()
+
+        if favoriteSongIDs == requestedIDs {
+            favoriteSongs = songs
+            favoriteSongsNextOffset = requestedIDs.count
+            favoriteSongsLoadMoreError = nil
+        }
+        return songs
+    }
+
+    private func loadFavoriteSongsPage(
+        ids requestedIDs: [Int],
+        offset requestedOffset: Int
+    ) async {
         isLoadingMoreFavoriteSongs = true
         favoriteSongsLoadMoreError = nil
-        defer {
-            isLoadingMoreFavoriteSongs = false
-        }
+        defer { isLoadingMoreFavoriteSongs = false }
 
         do {
             let page = try await api.songDetailsPage(
@@ -218,6 +392,85 @@ final class LibraryStore {
             return
         } catch {
             favoriteSongsLoadMoreError = error.localizedDescription
+        }
+    }
+
+    func loadMoreSubscribedPodcasts() async {
+        guard settings.isContentFeatureEnabled(.podcasts) else { return }
+        if let subscribedPodcastPageLoadTask {
+            await subscribedPodcastPageLoadTask.value
+            return
+        }
+
+        guard hasMoreSubscribedPodcasts else { return }
+
+        let requestedOffset = subscribedPodcastsNextOffset
+        let loadID = UUID()
+        let loadTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.loadSubscribedPodcastPage(
+                offset: requestedOffset
+            )
+        }
+        subscribedPodcastPageLoadID = loadID
+        subscribedPodcastPageLoadTask = loadTask
+
+        await loadTask.value
+
+        guard subscribedPodcastPageLoadID == loadID else { return }
+        subscribedPodcastPageLoadTask = nil
+        subscribedPodcastPageLoadID = nil
+    }
+
+    func loadRemainingSubscribedPodcasts() async {
+        while hasMoreSubscribedPodcasts {
+            guard !Task.isCancelled else { return }
+            let previousOffset = subscribedPodcastsNextOffset
+            await loadMoreSubscribedPodcasts()
+            guard subscribedPodcastsNextOffset > previousOffset else {
+                return
+            }
+        }
+    }
+
+    private func loadSubscribedPodcastPage(
+        offset requestedOffset: Int
+    ) async {
+        isLoadingMoreSubscribedPodcasts = true
+        subscribedPodcastsLoadMoreError = nil
+        defer { isLoadingMoreSubscribedPodcasts = false }
+
+        do {
+            let page = try await api.subscribedPodcasts(
+                offset: requestedOffset,
+                limit: subscribedPodcastPageSize
+            )
+            try Task.checkCancellation()
+            guard subscribedPodcastsNextOffset == requestedOffset else {
+                return
+            }
+
+            var loadedIDs = Set(subscribedPodcasts.map(\.id))
+            subscribedPodcasts.append(
+                contentsOf: normalizedSubscribedPodcasts(
+                    page.podcasts
+                ).filter {
+                    loadedIDs.insert($0.id).inserted
+                }
+            )
+            subscribedPodcastsNextOffset =
+                requestedOffset + page.podcasts.count
+            subscribedPodcastTotalCount = max(
+                page.totalCount ?? subscribedPodcastTotalCount,
+                subscribedPodcasts.count
+            )
+            hasMoreSubscribedPodcasts =
+                page.hasMore && !page.podcasts.isEmpty
+        } catch is CancellationError {
+            return
+        } catch {
+            subscribedPodcastsLoadMoreError =
+                error.localizedDescription
         }
     }
 
@@ -275,6 +528,87 @@ final class LibraryStore {
         }
     }
 
+    func toggle(podcast: Podcast) {
+        guard isLoggedIn else {
+            errorMessage = APIError.notLoggedIn.localizedDescription
+            return
+        }
+
+        let desiredState = !contains(podcast: podcast)
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                try await self.setPodcastSubscribed(
+                    podcast,
+                    isSubscribed: desiredState
+                )
+            } catch is CancellationError {
+                return
+            } catch {
+                self.errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    func setPodcastSubscribed(
+        _ podcast: Podcast,
+        isSubscribed: Bool
+    ) async throws {
+        guard isLoggedIn else { throw APIError.notLoggedIn }
+
+        let previousPodcasts = subscribedPodcasts
+        let previousTotalCount = subscribedPodcastTotalCount
+        let previousNextOffset = subscribedPodcastsNextOffset
+        let previousHasMore = hasMoreSubscribedPodcasts
+        setLocalPodcast(podcast, isSubscribed: isSubscribed)
+
+        do {
+            try await api.setPodcastSubscribed(
+                id: podcast.id,
+                isSubscribed: isSubscribed
+            )
+        } catch {
+            subscribedPodcasts = previousPodcasts
+            subscribedPodcastTotalCount = previousTotalCount
+            subscribedPodcastsNextOffset = previousNextOffset
+            hasMoreSubscribedPodcasts = previousHasMore
+            throw error
+        }
+    }
+
+    func canDelete(_ playlist: Playlist) -> Bool {
+        guard isLoggedIn, let userID = profile?.id else { return false }
+        return playlist.creator?.userID == userID && playlist.id != likedPlaylistID
+    }
+
+    func deletePlaylist(_ playlist: Playlist) async throws {
+        guard isLoggedIn else { throw APIError.notLoggedIn }
+        guard canDelete(playlist) else { throw LibraryOperationError.playlistIsNotOwned }
+        try await api.deletePlaylist(id: playlist.id)
+        favoritePlaylists.removeAll { $0.id == playlist.id }
+    }
+
+    func createPlaylist(name: String, isPrivate: Bool) async throws {
+        guard isLoggedIn, let profile else { throw APIError.notLoggedIn }
+        let created = try await api.createPlaylist(name: name, isPrivate: isPrivate)
+        let summary = Playlist(
+            id: created.id,
+            name: created.name,
+            coverURLString: created.coverURLString,
+            creator: UserSummary(userID: profile.id, nickname: profile.nickname)
+        )
+        favoritePlaylists.insert(summary, at: 0)
+    }
+
+    func remove(song: Song, from playlist: Playlist) async throws {
+        guard isLoggedIn else { throw APIError.notLoggedIn }
+        guard canDelete(playlist) else { throw LibraryOperationError.playlistIsNotOwned }
+        try await api.removeSong(id: song.id, fromPlaylistID: playlist.id)
+        if let index = favoritePlaylists.firstIndex(where: { $0.id == playlist.id }) {
+            favoritePlaylists[index].removeSong(id: song.id)
+        }
+    }
+
     func add(song: Song, to playlist: Playlist) async throws {
         guard isLoggedIn else { throw APIError.notLoggedIn }
         guard playlist.creator?.userID == profile?.id else {
@@ -295,17 +629,32 @@ final class LibraryStore {
     }
 
     private func clearRemoteContent() {
+        favoriteSongPageLoadTask?.cancel()
+        favoriteSongPageLoadTask = nil
+        favoriteSongPageLoadID = nil
+        subscribedPodcastPageLoadTask?.cancel()
+        subscribedPodcastPageLoadTask = nil
+        subscribedPodcastPageLoadID = nil
         profile = nil
         accountDetail = nil
         favoriteSongs = []
         favoritePlaylists = []
+        favoriteAlbums = []
+        favoriteArtists = []
+        subscribedPodcasts = []
         recentSongs = []
+        likedPlaylistID = nil
         favoriteSongIDs = []
         favoriteSongIDSet = []
         favoriteSongTotalCount = 0
         favoriteSongsNextOffset = 0
         isLoadingMoreFavoriteSongs = false
         favoriteSongsLoadMoreError = nil
+        subscribedPodcastTotalCount = 0
+        subscribedPodcastsNextOffset = 0
+        hasMoreSubscribedPodcasts = false
+        isLoadingMoreSubscribedPodcasts = false
+        subscribedPodcastsLoadMoreError = nil
     }
 
     private func setLocalSong(
@@ -329,6 +678,47 @@ final class LibraryStore {
         }
         favoriteSongTotalCount = favoriteSongIDs.count
     }
+
+    private func setLocalPodcast(
+        _ podcast: Podcast,
+        isSubscribed: Bool
+    ) {
+        let wasSubscribed =
+            contains(podcast: podcast) || podcast.isSubscribed
+        subscribedPodcasts.removeAll { $0.id == podcast.id }
+
+        if isSubscribed {
+            var summary = podcast
+            summary.isSubscribed = true
+            subscribedPodcasts.insert(summary, at: 0)
+        }
+
+        if wasSubscribed != isSubscribed {
+            subscribedPodcastTotalCount += isSubscribed ? 1 : -1
+        }
+        subscribedPodcastTotalCount = max(
+            subscribedPodcastTotalCount,
+            subscribedPodcasts.count
+        )
+        subscribedPodcastsNextOffset = subscribedPodcasts.count
+        hasMoreSubscribedPodcasts =
+            subscribedPodcastsNextOffset < subscribedPodcastTotalCount
+    }
+
+    private func normalizedSubscribedPodcasts(
+        _ podcasts: [Podcast]
+    ) -> [Podcast] {
+        var identifiers = Set<Int>()
+        return podcasts.compactMap { podcast in
+            guard podcast.id > 0,
+                  identifiers.insert(podcast.id).inserted else {
+                return nil
+            }
+            var subscribedPodcast = podcast
+            subscribedPodcast.isSubscribed = true
+            return subscribedPodcast
+        }
+    }
 }
 
 private enum LibraryOperationError: LocalizedError {
@@ -337,7 +727,7 @@ private enum LibraryOperationError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .playlistIsNotOwned:
-            "只能向自己创建的歌单添加歌曲。"
+            L10n.string("ui.library.error.owned_playlist_only")
         }
     }
 }

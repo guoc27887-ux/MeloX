@@ -23,7 +23,9 @@ struct CloudSong: Decodable, Hashable, Identifiable {
         songID = container.lossyInt(forKey: .songID) ?? simpleSong.id
         songName = try container.decodeIfPresent(String.self, forKey: .songName) ?? simpleSong.name
         artist = try container.decodeIfPresent(String.self, forKey: .artist) ?? simpleSong.artistText
-        album = try container.decodeIfPresent(String.self, forKey: .album) ?? simpleSong.album?.name ?? "未知专辑"
+        album = try container.decodeIfPresent(String.self, forKey: .album)
+            ?? simpleSong.album?.name
+            ?? L10n.string("ui.metadata.unknown_album")
         fileSize = container.lossyInt64(forKey: .fileSize) ?? 0
         bitrate = container.lossyInt(forKey: .bitrate) ?? 0
         addTime = container.lossyInt64(forKey: .addTime) ?? 0

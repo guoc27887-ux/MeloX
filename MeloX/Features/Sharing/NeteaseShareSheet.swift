@@ -59,24 +59,24 @@ private struct NeteaseTimelineShareView: View {
 
     var body: some View {
         Form {
-            Section("转发内容") {
+            Section("ui.sharing.forwarded_content") {
                 NeteaseShareResourcePreview(resource: resource)
             }
 
-            Section("说点什么") {
+            Section("ui.sharing.say_something") {
                 TextField(
-                    "选填",
+                    "ui.common.optional",
                     text: $message,
                     axis: .vertical
                 )
                 .lineLimit(3...8)
             }
         }
-        .navigationTitle("转发到动态")
+        .navigationTitle("ui.sharing.forward_to_feed")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
-                Button("取消") {
+                Button("ui.common.cancel") {
                     dismiss()
                 }
                 .disabled(isSending)
@@ -89,7 +89,7 @@ private struct NeteaseTimelineShareView: View {
                     if isSending {
                         ProgressView()
                     } else {
-                        Text("发布")
+                        Text("ui.common.publish")
                     }
                 }
                 .disabled(isSending)
@@ -97,17 +97,17 @@ private struct NeteaseTimelineShareView: View {
         }
         .interactiveDismissDisabled(isSending)
         .alert(
-            "转发失败",
+            "ui.sharing.forward_failed",
             isPresented: Binding(
                 get: { errorMessage != nil },
                 set: { if !$0 { errorMessage = nil } }
             )
         ) {
-            Button("好", role: .cancel) {
+            Button("ui.common.ok", role: .cancel) {
                 errorMessage = nil
             }
         } message: {
-            Text(errorMessage ?? "网易云音乐未完成操作。")
+            Text(errorMessage ?? L10n.string("ui.error.netease_operation_incomplete"))
         }
     }
 

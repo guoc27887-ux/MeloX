@@ -17,7 +17,7 @@ from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
 
-BUILD_JOB_NAME = "Build unsigned iOS IPA"
+DEFAULT_BUILD_JOB_NAME = "Build ios artifact / 构建 ios 产物"
 CAPTION_LIMIT = 1024
 DEFAULT_API_URL = "https://api.github.com"
 PAGE_SIZE = 100
@@ -80,9 +80,13 @@ def github_api_get(
             message = response.get("message", str(error))
         except (OSError, ValueError):
             message = str(error)
-        raise RuntimeError(f"GitHub API 请求失败：{message}") from error
+        raise RuntimeError(
+            f"GitHub API request failed / 请求失败: {message}"
+        ) from error
     except URLError as error:
-        raise RuntimeError(f"GitHub API 连接失败：{error.reason}") from error
+        raise RuntimeError(
+            f"GitHub API connection failed / 连接失败: {error.reason}"
+        ) from error
 
 
 def run_has_successful_build(
@@ -90,6 +94,7 @@ def run_has_successful_build(
     repository: str,
     token: str,
     run_id: int,
+    build_job_name: str,
 ) -> bool:
     payload = github_api_get(
         api_url,
@@ -99,7 +104,7 @@ def run_has_successful_build(
         {"filter": "latest", "per_page": PAGE_SIZE},
     )
     return any(
-        job.get("name") == BUILD_JOB_NAME and job.get("conclusion") == "success"
+        job.get("name") == build_job_name and job.get("conclusion") == "success"
         for job in payload.get("jobs", [])
     )
 
@@ -111,6 +116,7 @@ def find_previous_successful_build(
     workflow: str,
     current_run_id: int,
     current_sha: str,
+    build_job_name: str,
 ) -> tuple[str | None, int | None]:
     workflow_id = quote(workflow, safe="")
     for page in range(1, MAX_PAGES + 1):
@@ -129,7 +135,13 @@ def find_previous_successful_build(
             candidate_sha = resolve_commit(workflow_run.get("head_sha", ""))
             if candidate_sha is None or not is_ancestor(candidate_sha, current_sha):
                 continue
-            if run_has_successful_build(api_url, repository, token, run_id):
+            if run_has_successful_build(
+                api_url,
+                repository,
+                token,
+                run_id,
+                build_job_name,
+            ):
                 return candidate_sha, workflow_run.get("run_number")
         if len(runs) < PAGE_SIZE:
             break
@@ -193,14 +205,18 @@ def fit_caption(
         candidate_commits = [*visible_commits, commit_line]
         omitted_count = len(commit_lines) - len(candidate_commits)
         if omitted_count:
-            candidate_commits.append(f"• ……另有 {omitted_count} 条 Commit，详见 Actions")
+            candidate_commits.append(
+                f"• …and {omitted_count} more / 另有 {omitted_count} 条，详见 Actions"
+            )
         if telegram_length(compose_caption(header, candidate_commits, footer)) > CAPTION_LIMIT:
             break
         visible_commits.append(commit_line)
 
     omitted_count = len(commit_lines) - len(visible_commits)
     if omitted_count:
-        visible_commits.append(f"• ……另有 {omitted_count} 条 Commit，详见 Actions")
+        visible_commits.append(
+            f"• …and {omitted_count} more / 另有 {omitted_count} 条，详见 Actions"
+        )
     return compose_caption(header, visible_commits, footer)
 
 
@@ -212,28 +228,40 @@ def format_summary(
     current_run_number: int,
     repository: str,
     run_url: str,
+    website_url: str,
+    project: str,
 ) -> str:
-    header = ["MeloX CI 构建完成"]
+    header = [f"{project} CI build completed / CI 构建完成"]
     if previous_sha is None:
-        header.append(f"范围：首次 CI → CI #{current_run_number} ({current_sha[:7]})")
-    else:
-        previous_run = (
-            f"CI #{previous_run_number}" if previous_run_number else "上一次成功 CI"
-        )
         header.append(
-            f"范围：{previous_run} ({previous_sha[:7]}) → "
+            f"Range / 范围：First CI / 首次 CI → "
             f"CI #{current_run_number} ({current_sha[:7]})"
         )
-    header.append(f"共 {len(commits)} 条 Commit")
+    else:
+        previous_run = (
+            f"CI #{previous_run_number}"
+            if previous_run_number
+            else "Previous successful CI / 上一次成功 CI"
+        )
+        header.append(
+            f"Range / 范围：{previous_run} ({previous_sha[:7]}) → "
+            f"CI #{current_run_number} ({current_sha[:7]})"
+        )
+    header.append(f"{len(commits)} commits / 共 {len(commits)} 条 Commit")
     commit_lines = (
         [
             f"• {commit_sha[:7]} {subject} — {author}"
             for commit_sha, subject, author in commits
         ]
         if commits
-        else ["• 本次没有新增 Commit"]
+        else ["• No new commits / 本次没有新增 Commit"]
     )
-    footer = [f"仓库：{repository}", f"详情：{run_url}"]
+    footer = [
+        f"Website / 官网：{website_url}",
+        "Discover MeloX and share it with friends! / 欢迎了解并分享 MeloX！",
+        f"Repository / 仓库：{repository}",
+        f"Details / 详情：{run_url}",
+    ]
     return fit_caption(header, commit_lines, footer)
 
 
@@ -244,9 +272,12 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--current-run-number", required=True, type=int)
     parser.add_argument("--repository", required=True)
     parser.add_argument("--workflow", default="build-unsigned.yml")
+    parser.add_argument("--build-job-name", default=DEFAULT_BUILD_JOB_NAME)
+    parser.add_argument("--project", default="MeloX")
     parser.add_argument("--fallback-sha", default="")
     parser.add_argument("--previous-sha")
     parser.add_argument("--run-url", required=True)
+    parser.add_argument("--website-url", required=True)
     parser.add_argument("--output", required=True, type=Path)
     return parser.parse_args()
 
@@ -255,7 +286,11 @@ def main() -> int:
     arguments = parse_arguments()
     current_sha = resolve_commit(arguments.current_sha)
     if current_sha is None:
-        print(f"无法解析当前 Commit：{arguments.current_sha}", file=sys.stderr)
+        print(
+            f"Unable to resolve current commit / 无法解析当前 Commit: "
+            f"{arguments.current_sha}",
+            file=sys.stderr,
+        )
         return 1
 
     previous_sha: str | None = None
@@ -263,14 +298,18 @@ def main() -> int:
     if arguments.previous_sha:
         previous_sha = fallback_baseline(arguments.previous_sha, current_sha)
         if previous_sha is None:
-            print(f"无法解析指定的基线 Commit：{arguments.previous_sha}", file=sys.stderr)
+            print(
+                f"Unable to resolve baseline commit / 无法解析基线 Commit: "
+                f"{arguments.previous_sha}",
+                file=sys.stderr,
+            )
             return 1
     else:
         token = os.environ.get("GITHUB_TOKEN", "")
         api_url = os.environ.get("GITHUB_API_URL", DEFAULT_API_URL)
         try:
             if not token:
-                raise RuntimeError("缺少 GITHUB_TOKEN")
+                raise RuntimeError("Missing GITHUB_TOKEN / 缺少 GITHUB_TOKEN")
             previous_sha, previous_run_number = find_previous_successful_build(
                 api_url,
                 arguments.repository,
@@ -278,9 +317,14 @@ def main() -> int:
                 arguments.workflow,
                 arguments.current_run_id,
                 current_sha,
+                arguments.build_job_name,
             )
         except RuntimeError as error:
-            print(f"::warning::{error}，将尝试使用事件 before SHA。", file=sys.stderr)
+            print(
+                f"::warning::{error}; falling back to the event before SHA / "
+                "将尝试使用事件 before SHA。",
+                file=sys.stderr,
+            )
         if previous_sha is None:
             previous_sha = fallback_baseline(arguments.fallback_sha, current_sha)
 
@@ -292,6 +336,8 @@ def main() -> int:
         arguments.current_run_number,
         arguments.repository,
         arguments.run_url,
+        arguments.website_url,
+        arguments.project,
     )
     arguments.output.parent.mkdir(parents=True, exist_ok=True)
     arguments.output.write_text(f"{caption}\n", encoding="utf-8")

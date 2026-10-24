@@ -27,13 +27,13 @@ struct NeteasePrivateMessagesView: View {
             }
         }
         .listStyle(.plain)
-        .navigationTitle("私信")
+        .navigationTitle("ui.messages.private.title")
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 NavigationLink(value: NeteasePrivateMessageRoute.contacts) {
                     Image(systemName: "square.and.pencil")
                 }
-                .accessibilityLabel("发起私信")
+                .accessibilityLabel("ui.messages.start_private_message")
             }
         }
         .refreshable {
@@ -42,19 +42,19 @@ struct NeteasePrivateMessagesView: View {
         .overlay {
             switch phase {
             case .loading where conversations.isEmpty:
-                ProgressView("正在读取私信")
+                ProgressView("ui.messages.loading_private_messages")
             case .failed(let message) where conversations.isEmpty:
                 ConnectionUnavailableView(message: message) {
                     Task { await load() }
                 }
             case .loaded where conversations.isEmpty:
                 ContentUnavailableView {
-                    Label("暂无私信", systemImage: "bubble.left.and.bubble.right")
+                    Label("ui.messages.empty", systemImage: "bubble.left.and.bubble.right")
                 } description: {
-                    Text("收到的私信和已发起的会话会显示在这里。")
+                    Text("ui.messages.empty.message")
                 } actions: {
                     NavigationLink(
-                        "发起私信",
+                        "ui.messages.start_private_message",
                         value: NeteasePrivateMessageRoute.contacts
                     )
                     .buttonStyle(.borderedProminent)
@@ -118,7 +118,11 @@ struct NeteasePrivateMessagesView: View {
                     Spacer()
 
                     if conversation.unreadCount > 0 {
-                        Text(conversation.unreadCount.formatted())
+                        Text(
+                            conversation.unreadCount.formatted(
+                                .number.locale(L10n.locale)
+                            )
+                        )
                             .font(.caption2.weight(.semibold))
                             .foregroundStyle(.white)
                             .padding(.horizontal, 6)
@@ -136,9 +140,15 @@ struct NeteasePrivateMessagesView: View {
             timeIntervalSince1970: TimeInterval(milliseconds) / 1_000
         )
         if Calendar.current.isDateInToday(date) {
-            return date.formatted(date: .omitted, time: .shortened)
+            return date.formatted(
+                Date.FormatStyle(date: .omitted, time: .shortened)
+                    .locale(L10n.locale)
+            )
         }
-        return date.formatted(date: .abbreviated, time: .omitted)
+        return date.formatted(
+            Date.FormatStyle(date: .abbreviated, time: .omitted)
+                .locale(L10n.locale)
+        )
     }
 
     private func clearUnreadCount(for contactID: Int) {

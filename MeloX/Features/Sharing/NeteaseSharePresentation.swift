@@ -49,19 +49,19 @@ struct NeteaseShareMenuContent: View {
         Button {
             openNeteaseShare(resource, mode: .privateMessage)
         } label: {
-            Label("网易云私信", systemImage: "paperplane")
+            Label("ui.sharing.netease_private_message", systemImage: "paperplane")
         }
 
         if resource.supportsTimelineSharing {
             Button {
                 openNeteaseShare(resource, mode: .timeline)
             } label: {
-                Label("转发到动态", systemImage: "arrowshape.turn.up.right")
+                Label("ui.sharing.forward_to_feed", systemImage: "arrowshape.turn.up.right")
             }
         }
 
         ShareLink(item: resource.webURL) {
-            Label("系统分享", systemImage: "square.and.arrow.up")
+            Label("ui.sharing.system_share", systemImage: "square.and.arrow.up")
         }
     }
 }

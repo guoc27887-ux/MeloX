@@ -6,83 +6,103 @@ struct ProjectLicensesView: View {
             Section {
                 VStack(alignment: .leading, spacing: 10) {
                     Label(
-                        "PV Tool 仅限非商业使用",
+                        "ui.legal.pv_tool.noncommercial.title",
                         systemImage: "exclamationmark.triangle.fill"
                     )
                     .font(.headline)
                     .foregroundStyle(.orange)
 
-                    Text("文字 PV 模板、效果实现及相关衍生内容受 PV Tool 单独的 Non-Commercial License 约束。用于商业产品、付费服务或商业化嵌入前，必须另行取得原作者授权。")
+                    Text("ui.legal.pv_tool.noncommercial.message")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
                 .padding(.vertical, 4)
 
-                NavigationLink("查看完整许可与商业授权说明") {
+                NavigationLink("ui.legal.pv_tool.view_license") {
                     LegalDocumentView(document: .pvTool)
                 }
             } header: {
-                Text("重要提醒")
+                Text("ui.legal.section.important")
             } footer: {
-                Text("MeloX 的 GPLv3 许可证不会覆盖或替代 PV Tool 的单独许可条件。")
+                Text("ui.legal.pv_tool.gpl_notice")
             }
 
-            Section("许可证") {
+            Section("ui.legal.section.licenses") {
                 licenseLink(
                     title: "MeloX",
-                    license: "GNU GPLv3",
+                    license: L10n.string("ui.legal.license.gnu_gpl_v3"),
                     document: .melox
                 )
                 licenseLink(
                     title: "YesPlayMusic",
-                    license: "MIT License",
+                    license: L10n.string("ui.legal.license.mit"),
                     document: .yesPlayMusic
                 )
                 licenseLink(
+                    title: L10n.string("ui.legal.netease_audio_fingerprint"),
+                    license: L10n.string("ui.legal.license.mit"),
+                    document: .neteaseAPI
+                )
+                licenseLink(
                     title: "PV Tool",
-                    license: "Non-Commercial License",
+                    license: L10n.string("ui.legal.license.noncommercial"),
                     document: .pvTool
                 )
                 licenseLink(
                     title: "Source Han Serif CN",
-                    license: "SIL OFL 1.1",
+                    license: L10n.string("ui.legal.license.sil_ofl"),
                     document: .sourceHanSerif
+                )
+                licenseLink(
+                    title: "BeatNet",
+                    license: L10n.string("ui.legal.license.cc_by"),
+                    document: .beatNet
                 )
             }
 
             Section {
                 projectLink(
                     name: "jayfunc/BetterLyrics",
-                    contribution: "逐字歌词渲染、光效与动效参考",
+                    contribution: L10n.string("ui.legal.reference.better_lyrics"),
                     url: URL(string: "https://github.com/jayfunc/BetterLyrics")!
                 )
                 projectLink(
                     name: "WXRIW/Lyricify-Lyrics-Helper",
-                    contribution: "网易云 YRC 逐字歌词解析参考",
+                    contribution: L10n.string("ui.legal.reference.lyricify"),
                     url: URL(string: "https://github.com/WXRIW/Lyricify-Lyrics-Helper")!
                 )
                 projectLink(
                     name: "qier222/YesPlayMusic",
-                    contribution: "网易云接口与播放器实现参考",
+                    contribution: L10n.string("ui.legal.reference.yesplaymusic"),
                     url: URL(string: "https://github.com/qier222/YesPlayMusic")!
                 )
                 projectLink(
+                    name: "neteasecloudmusicapienhanced/api-enhanced",
+                    contribution: L10n.string("ui.legal.reference.netease_api"),
+                    url: URL(string: "https://github.com/neteasecloudmusicapienhanced/api-enhanced")!
+                )
+                projectLink(
                     name: "DanteAlighieri13210914/pv-tool",
-                    contribution: "文字 PV 模板与效果的原始实现",
+                    contribution: L10n.string("ui.legal.reference.pv_tool"),
                     url: URL(string: "https://github.com/DanteAlighieri13210914/pv-tool")!
                 )
+                projectLink(
+                    name: "mjhydri/BeatNet",
+                    contribution: L10n.string("ui.legal.reference.beatnet"),
+                    url: URL(string: "https://github.com/mjhydri/BeatNet")!
+                )
             } header: {
-                Text("参考项目")
+                Text("ui.legal.section.references")
             } footer: {
-                Text("各参考项目的代码、资源和文档仍分别受其原始许可证与声明约束。")
+                Text("ui.legal.references.footer")
             }
 
-            Section("声明") {
-                Text("MeloX 是非官方第三方客户端，与网易云音乐及其关联公司不存在隶属、合作或授权关系。")
+            Section("ui.legal.section.disclaimer") {
+                Text("ui.legal.unofficial_disclaimer")
                     .foregroundStyle(.secondary)
             }
         }
-        .navigationTitle("项目与许可")
+        .navigationTitle("ui.legal.projects_licenses.title")
         .navigationBarTitleDisplayMode(.inline)
     }
 
@@ -133,31 +153,43 @@ struct ProjectLicensesView: View {
 enum LegalDocument: String, Identifiable {
     case melox
     case yesPlayMusic
+    case neteaseAPI
     case pvTool
     case sourceHanSerif
+    case beatNet
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .melox: "MeloX 许可证"
-        case .yesPlayMusic: "YesPlayMusic 许可证"
-        case .pvTool: "PV Tool 许可与声明"
-        case .sourceHanSerif: "思源宋体许可证"
+        case .melox: L10n.string("ui.legal.document.melox.title")
+        case .yesPlayMusic: L10n.string("ui.legal.document.yesplaymusic.title")
+        case .neteaseAPI: L10n.string("ui.legal.document.netease_api.title")
+        case .pvTool: L10n.string("ui.legal.document.pv_tool.title")
+        case .sourceHanSerif: L10n.string("ui.legal.document.source_han_serif.title")
+        case .beatNet: L10n.string("ui.legal.document.beatnet.title")
         }
     }
 
     var text: String {
         switch self {
         case .melox:
-            "MeloX 应用主体以 GNU General Public License version 3 发布。复制、修改或分发时，应保留版权与许可声明，并遵守 GPLv3 的源代码提供及同许可证分发要求。第三方代码和资源的单独许可证仍然有效。"
+            L10n.string("ui.legal.document.melox.fallback")
         case .yesPlayMusic:
-            "MeloX 的网易云接口和播放器实现参考了 qier222/YesPlayMusic。YesPlayMusic 以 MIT License 发布，Copyright © 2020–2023 qier222；使用其软件或重要部分时需保留原版权和许可声明。"
+            L10n.string("ui.legal.document.yesplaymusic.fallback")
+        case .neteaseAPI:
+            Self.neteaseAPIText
         case .pvTool:
             Self.pvToolText
         case .sourceHanSerif:
             Self.bundledText(named: "SourceHanSerif-LICENSE", extension: "txt")
-                ?? "思源宋体使用 SIL Open Font License 1.1。完整许可证随应用资源一同提供。"
+                ?? L10n.string("ui.legal.document.source_han_serif.fallback")
+        case .beatNet:
+            Self.bundledText(
+                named: "BeatNet-NOTICE",
+                extension: "md"
+            )
+                ?? L10n.string("ui.legal.document.beatnet.fallback")
         }
     }
 
@@ -167,18 +199,22 @@ enum LegalDocument: String, Identifiable {
             URL(string: "https://github.com/youshen2/MeloX/blob/master/LICENSE")
         case .yesPlayMusic:
             URL(string: "https://github.com/qier222/YesPlayMusic/blob/main/LICENSE")
+        case .neteaseAPI:
+            URL(string: "https://github.com/neteasecloudmusicapienhanced/api-enhanced")
         case .pvTool:
             URL(string: "https://github.com/DanteAlighieri13210914/pv-tool")
         case .sourceHanSerif:
             URL(string: "https://openfontlicense.org/open-font-license-official-text/")
+        case .beatNet:
+            URL(string: "https://github.com/mjhydri/BeatNet")
         }
     }
 
     private static var pvToolText: String {
         let documents = [
-            ("PV Tool — Non-Commercial License", "PVTool-LICENSE", "txt"),
-            ("NOTICE", "PVTool-NOTICE", "txt"),
-            ("Commercial License", "PVTool-COMMERCIAL", "md"),
+            (L10n.string("ui.legal.document.pv_tool.noncommercial_heading"), "PVTool-LICENSE", "txt"),
+            (L10n.string("ui.legal.document.notice_heading"), "PVTool-NOTICE", "txt"),
+            (L10n.string("ui.legal.document.commercial_heading"), "PVTool-COMMERCIAL", "md"),
         ]
 
         let contents = documents.compactMap { title, name, fileExtension in
@@ -187,7 +223,37 @@ enum LegalDocument: String, Identifiable {
             }
         }
         guard !contents.isEmpty else {
-            return "PV Tool 使用 Non-Commercial License。未经作者书面许可，不得用于商业产品、付费服务或其他商业场景。商业使用需要联系原作者取得单独授权。"
+            return L10n.string("ui.legal.document.pv_tool.fallback")
+        }
+        return contents.joined(separator: "\n\n──────────\n\n")
+    }
+
+    private static var neteaseAPIText: String {
+        let documents = [
+            (
+                L10n.string("ui.legal.document.audio_fingerprint_notice_heading"),
+                "NeteaseAudioFingerprint-NOTICE",
+                "txt"
+            ),
+            (
+                L10n.string("ui.legal.license.mit"),
+                "NeteaseAPI-LICENSE",
+                "txt"
+            ),
+        ]
+        let contents = documents.compactMap {
+            title,
+            name,
+            fileExtension in
+            bundledText(
+                named: name,
+                extension: fileExtension
+            ).map {
+                "\(title)\n\n\($0)"
+            }
+        }
+        guard !contents.isEmpty else {
+            return L10n.string("ui.legal.document.netease_api.fallback")
         }
         return contents.joined(separator: "\n\n──────────\n\n")
     }
@@ -196,10 +262,23 @@ enum LegalDocument: String, Identifiable {
         named name: String,
         extension fileExtension: String
     ) -> String? {
-        guard let url = Bundle.main.url(
-            forResource: name,
-            withExtension: fileExtension
-        ) else {
+        let candidateURLs = [
+            Bundle.main.url(
+                forResource: name,
+                withExtension: fileExtension
+            ),
+            Bundle.main.url(
+                forResource: name,
+                withExtension: fileExtension,
+                subdirectory: "AudioFingerprint"
+            ),
+            Bundle.main.url(
+                forResource: name,
+                withExtension: fileExtension,
+                subdirectory: "Resources/AudioFingerprint"
+            ),
+        ]
+        guard let url = candidateURLs.compactMap({ $0 }).first else {
             return nil
         }
         return try? String(contentsOf: url, encoding: .utf8)
@@ -224,7 +303,7 @@ struct LegalDocumentView: View {
             if let sourceURL = document.sourceURL {
                 ToolbarItem(placement: .primaryAction) {
                     Link(destination: sourceURL) {
-                        Label("查看来源", systemImage: "arrow.up.right")
+                        Label("ui.legal.view_source", systemImage: "arrow.up.right")
                     }
                 }
             }

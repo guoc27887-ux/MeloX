@@ -30,14 +30,16 @@ struct SongCommentRow: View {
                     Text(commentDateText)
 
                     if let location = comment.ipLocation?.location, !location.isEmpty {
-                        Text("IP 属地：\(location)")
+                        Text(L10n.format("ui.comments.ip_location", location))
                     }
 
                     Spacer(minLength: 8)
 
                     if comment.likedCount > 0 {
                         Label(
-                            comment.likedCount.formatted(),
+                            comment.likedCount.formatted(
+                                .number.locale(L10n.locale)
+                            ),
                             systemImage: comment.isLiked ? "hand.thumbsup.fill" : "hand.thumbsup"
                         )
                     }
@@ -48,7 +50,13 @@ struct SongCommentRow: View {
         }
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(comment.user.nickname)：\(comment.content)")
+        .accessibilityLabel(
+            L10n.format(
+                "ui.accessibility.author_and_content",
+                comment.user.nickname,
+                comment.content
+            )
+        )
     }
 
     private var commentDateText: String {
@@ -57,7 +65,7 @@ struct SongCommentRow: View {
         }
         guard let time = comment.time else { return "" }
         return Date(timeIntervalSince1970: time / 1_000).formatted(
-            .dateTime.year().month().day()
+            .dateTime.year().month().day().locale(L10n.locale)
         )
     }
 
@@ -65,6 +73,10 @@ struct SongCommentRow: View {
         guard let nickname = reply.user?.nickname, !nickname.isEmpty else {
             return reply.content
         }
-        return "@\(nickname)：\(reply.content)"
+        return L10n.format(
+            "ui.comments.reply_content",
+            nickname,
+            reply.content
+        )
     }
 }

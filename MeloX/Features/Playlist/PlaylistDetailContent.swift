@@ -12,9 +12,13 @@ struct PlaylistDetailContent: View {
     let loadedTrackOffset: Int
     let isLoadingMoreTracks: Bool
     let loadMoreTracksError: String?
+    let isPreparingPlayback: Bool
+    let downloadCoordinator: MusicCollectionDownloadCoordinator?
     let onRetry: () -> Void
     let onRefresh: () async -> Void
     let onLoadMore: () async -> Void
+    let onPlayAll: (Bool) async -> Void
+    var onRemoveSong: ((Song) -> Void)?
 
     @Environment(LibraryStore.self) private var library
     private var usesToplistLayout: Bool {
@@ -39,20 +43,24 @@ struct PlaylistDetailContent: View {
                             playlist: playlist,
                             summary: toplistSummary,
                             artworkURL: artworkURL,
-                            palette: palette
+                            palette: palette,
+                            isPreparingPlayback: isPreparingPlayback,
+                            onPlayAll: onPlayAll
                         )
                     } else {
                         StandardMusicCollectionDetailHero(
                             artworkURL: playlist.artworkURL,
                             title: playlist.name,
-                            subtitle: playlist.creator?.nickname ?? "网易云音乐",
+                            subtitle: playlist.creator?.nickname ?? L10n.string("ui.service.netease_cloud_music"),
                             metadataText: standardMetadata,
                             tracks: playlist.tracks,
                             sourceID: playlist.id,
                             isSaved: library.contains(playlist: playlist),
+                            isPreparingPlayback: isPreparingPlayback,
                             onToggleSaved: {
                                 library.toggle(playlist: playlist)
-                            }
+                            },
+                            onPlayAll: onPlayAll
                         )
                     }
 
@@ -60,15 +68,19 @@ struct PlaylistDetailContent: View {
                         tracks: filteredTracks,
                         sourceID: playlist.id,
                         showsArtwork: usesToplistLayout,
-                        loadingTitle: usesToplistLayout ? "正在载入排行榜" : "正在载入歌单",
+                        loadingTitle: usesToplistLayout
+                            ? L10n.string("ui.toplists.loading")
+                            : L10n.string("ui.playlists.loading"),
                         isLoading: isLoading,
                         failureMessage: failureMessage,
                         hasMoreTracks: hasMoreTracks,
                         loadedTrackOffset: loadedTrackOffset,
                         isLoadingMoreTracks: isLoadingMoreTracks,
                         loadMoreTracksError: loadMoreTracksError,
+                        downloadSelection: downloadCoordinator,
                         onRetry: onRetry,
-                        onLoadMore: onLoadMore
+                        onLoadMore: onLoadMore,
+                        onRemoveSong: onRemoveSong
                     )
                 }
                 .padding(.bottom, 32)
@@ -89,7 +101,11 @@ struct PlaylistDetailContent: View {
         let count = playlist.trackCount > 0
             ? playlist.trackCount
             : playlist.tracks.count
-        return "\(count) 首歌曲 · \(playlist.playCount.compactPlayCount) 次播放"
+        return L10n.format(
+            "ui.playlists.metadata",
+            count,
+            playlist.playCount.compactPlayCount
+        )
     }
 
     private var filteredTracks: [Song] {
@@ -108,8 +124,10 @@ struct MusicCollectionTrackContent: View {
     var loadedTrackOffset = 0
     var isLoadingMoreTracks = false
     var loadMoreTracksError: String?
+    var downloadSelection: MusicCollectionDownloadCoordinator? = nil
     let onRetry: () -> Void
     var onLoadMore: () async -> Void = {}
+    var onRemoveSong: ((Song) -> Void)?
 
     var body: some View {
         Group {
@@ -129,7 +147,9 @@ struct MusicCollectionTrackContent: View {
                     PlaylistTrackList(
                         tracks: tracks,
                         sourceID: sourceID,
-                        showsArtwork: showsArtwork
+                        showsArtwork: showsArtwork,
+                        onRemoveSong: onRemoveSong,
+                        downloadSelection: downloadSelection
                     )
 
                     if hasMoreTracks {
@@ -157,7 +177,9 @@ struct StandardMusicCollectionDetailHero: View {
     let tracks: [Song]
     let sourceID: Int
     let isSaved: Bool
+    var isPreparingPlayback = false
     let onToggleSaved: () -> Void
+    var onPlayAll: ((Bool) async -> Void)? = nil
 
     var body: some View {
         VStack(spacing: 0) {
@@ -189,7 +211,9 @@ struct StandardMusicCollectionDetailHero: View {
                 tracks: tracks,
                 sourceID: sourceID,
                 isSaved: isSaved,
-                onToggleSaved: onToggleSaved
+                isPreparingPlayback: isPreparingPlayback,
+                onToggleSaved: onToggleSaved,
+                onPlayAll: onPlayAll
             )
                 .padding(.top, 17)
         }
@@ -204,6 +228,8 @@ private struct ToplistDetailHero: View {
     let summary: Playlist?
     let artworkURL: URL?
     let palette: ArtworkDetailPalette
+    let isPreparingPlayback: Bool
+    let onPlayAll: (Bool) async -> Void
 
     @Environment(LibraryStore.self) private var library
 
@@ -247,9 +273,11 @@ private struct ToplistDetailHero: View {
                 tracks: playlist.tracks,
                 sourceID: playlist.id,
                 isSaved: library.contains(playlist: playlist),
+                isPreparingPlayback: isPreparingPlayback,
                 onToggleSaved: {
                     library.toggle(playlist: playlist)
-                }
+                },
+                onPlayAll: onPlayAll
             )
                 .padding(.top, 17)
 
@@ -265,7 +293,7 @@ private struct ToplistDetailHero: View {
     private var creatorName: String {
         playlist.creator?.nickname
             ?? summary?.creator?.nickname
-            ?? "网易云音乐"
+            ?? L10n.string("ui.service.netease_cloud_music")
     }
 
     private var updateText: String? {
@@ -285,7 +313,9 @@ struct MusicCollectionPrimaryActions: View {
     let tracks: [Song]
     let sourceID: Int
     let isSaved: Bool
+    let isPreparingPlayback: Bool
     let onToggleSaved: () -> Void
+    let onPlayAll: ((Bool) async -> Void)?
 
     @Environment(PlayerStore.self) private var player
     @Environment(\.colorScheme) private var colorScheme
@@ -295,7 +325,14 @@ struct MusicCollectionPrimaryActions: View {
             HStack(spacing: 14) {
                 Button {
                     Task {
-                        await player.playAll(tracks.shuffled(), sourceID: sourceID)
+                        if let onPlayAll {
+                            await onPlayAll(true)
+                        } else {
+                            await player.playAll(
+                                tracks.shuffled(),
+                                sourceID: sourceID
+                            )
+                        }
                     }
                 } label: {
                     Image(systemName: "shuffle")
@@ -305,22 +342,40 @@ struct MusicCollectionPrimaryActions: View {
                 .buttonStyle(.glass)
                 .buttonBorderShape(.circle)
                 .controlSize(.large)
-                .disabled(tracks.isEmpty)
-                .accessibilityLabel("随机播放")
+                .disabled(tracks.isEmpty || isPreparingPlayback)
+                .accessibilityLabel("ui.player.shuffle")
 
                 Button {
-                    Task { await player.playAll(tracks, sourceID: sourceID) }
+                    Task {
+                        if let onPlayAll {
+                            await onPlayAll(false)
+                        } else {
+                            await player.playAll(
+                                tracks,
+                                sourceID: sourceID
+                            )
+                        }
+                    }
                 } label: {
-                    Label("播放", systemImage: "play.fill")
-                        .font(.title3.weight(.bold))
-                        .frame(minWidth: 116)
+                    Group {
+                        if isPreparingPlayback {
+                            HStack(spacing: 8) {
+                                ProgressView()
+                                Text("ui.downloads.preparing")
+                            }
+                        } else {
+                            Label("ui.common.play", systemImage: "play.fill")
+                        }
+                    }
+                    .font(.title3.weight(.bold))
+                    .frame(minWidth: 116)
                 }
                 .buttonStyle(.glassProminent)
                 .buttonBorderShape(.capsule)
                 .controlSize(.large)
                 .tint(primaryActionBackground)
                 .foregroundStyle(primaryActionForeground)
-                .disabled(tracks.isEmpty)
+                .disabled(tracks.isEmpty || isPreparingPlayback)
 
                 Button(action: onToggleSaved) {
                     Image(
@@ -332,7 +387,11 @@ struct MusicCollectionPrimaryActions: View {
                 .buttonStyle(.glass)
                 .buttonBorderShape(.circle)
                 .controlSize(.large)
-                .accessibilityLabel(isSaved ? "取消收藏" : "收藏")
+                .accessibilityLabel(
+                    isSaved
+                        ? L10n.string("ui.common.unfavorite")
+                        : L10n.string("ui.common.favorite")
+                )
             }
         }
     }
@@ -357,7 +416,9 @@ private struct ExpandablePlaylistDescription: View {
                 isExpanded.toggle()
             }
         } label: {
-            Text("\(description)  \(Text(isExpanded ? "收起" : "更多").bold())")
+            Text(
+                "\(description)  \(Text(isExpanded ? L10n.string("ui.common.collapse") : L10n.string("ui.common.more")).bold())"
+            )
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.leading)
@@ -366,7 +427,11 @@ private struct ExpandablePlaylistDescription: View {
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 20)
-        .accessibilityLabel(isExpanded ? "收起歌单简介" : "展开歌单简介")
+        .accessibilityLabel(
+            isExpanded
+                ? L10n.string("ui.playlists.collapse_description")
+                : L10n.string("ui.playlists.expand_description")
+        )
     }
 }
 
@@ -432,13 +497,10 @@ private extension String {
 
 private extension Int {
     var compactPlayCount: String {
-        switch self {
-        case 100_000_000...:
-            return String(format: "%.1f 亿", Double(self) / 100_000_000)
-        case 10_000...:
-            return String(format: "%.1f 万", Double(self) / 10_000)
-        default:
-            return formatted()
-        }
+        formatted(
+            .number
+                .notation(.compactName)
+                .locale(L10n.locale)
+        )
     }
 }

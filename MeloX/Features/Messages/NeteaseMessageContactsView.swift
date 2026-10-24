@@ -41,20 +41,22 @@ struct NeteaseMessageContactsView: View {
             }
         }
         .listStyle(.plain)
-        .navigationTitle("发起私信")
+        .navigationTitle("ui.messages.start_private_message")
         .navigationBarTitleDisplayMode(.inline)
-        .searchable(text: $searchQuery, prompt: "搜索关注的人")
+        .searchable(text: $searchQuery, prompt: "ui.messages.search_following")
         .overlay {
             switch phase {
             case .loading where contacts.isEmpty:
-                ProgressView("正在读取联系人")
+                ProgressView("ui.messages.loading_contacts")
             case .failed(let message) where contacts.isEmpty:
                 ConnectionUnavailableView(message: message) {
                     Task { await load() }
                 }
             case .loaded where filteredContacts.isEmpty:
                 ContentUnavailableView(
-                    searchQuery.isEmpty ? "暂无可用联系人" : "没有找到联系人",
+                    searchQuery.isEmpty
+                        ? L10n.string("ui.messages.no_contacts")
+                        : L10n.string("ui.messages.contacts_not_found"),
                     systemImage: searchQuery.isEmpty
                         ? "person.2.slash"
                         : "magnifyingglass"

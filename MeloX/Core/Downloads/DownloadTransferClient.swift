@@ -81,9 +81,15 @@ final class DownloadTransferClient: NSObject, @preconcurrency URLSessionDownload
         didFinishDownloadingTo location: URL
     ) {
         guard var transfer = transfers[downloadTask.taskIdentifier] else { return }
-        let stagedURL = FileManager.default.temporaryDirectory
+        let stagingDirectory =
+            AppStorageLocations.downloadTransferDirectory()
+        let stagedURL = stagingDirectory
             .appending(path: UUID().uuidString, directoryHint: .notDirectory)
         do {
+            try FileManager.default.createDirectory(
+                at: stagingDirectory,
+                withIntermediateDirectories: true
+            )
             try FileManager.default.moveItem(at: location, to: stagedURL)
             transfer.stagedURL = stagedURL
             transfers[downloadTask.taskIdentifier] = transfer

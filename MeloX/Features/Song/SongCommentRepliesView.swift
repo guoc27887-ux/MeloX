@@ -16,7 +16,7 @@ struct SongCommentRepliesSheet: View {
                         } label: {
                             Image(systemName: "xmark")
                         }
-                        .accessibilityLabel("关闭回复")
+                        .accessibilityLabel("ui.comments.close_replies")
                     }
                 }
         }
@@ -41,7 +41,7 @@ struct SongCommentRepliesView: View {
 
     var body: some View {
         List {
-            Section("原评论") {
+            Section("ui.comments.original") {
                 SongCommentRow(comment: ownerComment ?? parentComment)
             }
 
@@ -52,11 +52,15 @@ struct SongCommentRepliesView: View {
                     loadMoreRow
                 }
             } header: {
-                Text(totalCount > 0 ? "全部回复 · \(totalCount.formatted())" : "全部回复")
+                Text(
+                    totalCount > 0
+                        ? L10n.format("ui.comments.all_replies_count", totalCount)
+                        : L10n.string("ui.comments.all_replies")
+                )
             }
         }
         .listStyle(.insetGrouped)
-        .navigationTitle("评论回复")
+        .navigationTitle("ui.comments.replies.title")
         .navigationBarTitleDisplayMode(.inline)
         .refreshable {
             await loadReplies()
@@ -72,18 +76,18 @@ struct SongCommentRepliesView: View {
         case .loading where replies.isEmpty:
             HStack {
                 Spacer()
-                ProgressView("正在载入回复")
+                ProgressView("ui.comments.replies.loading")
                 Spacer()
             }
         case .failed(let message) where replies.isEmpty:
             VStack(spacing: 12) {
-                Label("回复加载失败", systemImage: "exclamationmark.bubble")
+                Label("ui.comments.replies.load_failed", systemImage: "exclamationmark.bubble")
                     .font(.headline)
                 Text(message)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
-                Button("重试") {
+                Button("ui.common.retry") {
                     reloadToken += 1
                 }
             }
@@ -91,7 +95,7 @@ struct SongCommentRepliesView: View {
             .padding(.vertical, 24)
         default:
             if replies.isEmpty {
-                ContentUnavailableView("暂无回复", systemImage: "bubble.left")
+                ContentUnavailableView("ui.comments.replies.empty", systemImage: "bubble.left")
             } else {
                 ForEach(replies) { reply in
                     SongCommentRow(comment: reply)
@@ -107,7 +111,7 @@ struct SongCommentRepliesView: View {
                     Task { await loadMoreReplies() }
                 } label: {
                     VStack(spacing: 4) {
-                        Text("重新载入更多回复")
+                        Text("ui.comments.replies.reload_more")
                         Text(paginationError)
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -118,7 +122,7 @@ struct SongCommentRepliesView: View {
             } else {
                 HStack {
                     Spacer()
-                    ProgressView("载入更多回复")
+                    ProgressView("ui.comments.replies.loading_more")
                     Spacer()
                 }
                 .task {

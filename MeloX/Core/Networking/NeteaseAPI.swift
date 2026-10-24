@@ -1,20 +1,23 @@
 import Foundation
+import Network
 import Observation
 
-enum SearchKind: Int, CaseIterable, Identifiable {
+enum SearchKind: Int, CaseIterable, Identifiable, Hashable {
     case songs = 1
     case albums = 10
     case artists = 100
     case playlists = 1_000
+    case podcasts = 1_009
 
     var id: Int { rawValue }
 
     var title: String {
         switch self {
-        case .songs: "歌曲"
-        case .albums: "专辑"
-        case .artists: "歌手"
-        case .playlists: "歌单"
+        case .songs: L10n.string("ui.search.kind.songs")
+        case .albums: L10n.string("ui.search.kind.albums")
+        case .artists: L10n.string("ui.search.kind.artists")
+        case .playlists: L10n.string("ui.search.kind.playlists")
+        case .podcasts: L10n.string("ui.search.kind.podcasts")
         }
     }
 }
@@ -30,17 +33,17 @@ enum APIError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .requestEncoding:
-            "无法生成网易云音乐请求。"
+            L10n.string("ui.error.api.request_encoding")
         case .invalidResponse:
-            "音乐服务返回了无法识别的数据。"
+            L10n.string("ui.error.api.invalid_response")
         case .emptyResponse(let statusCode):
-            "音乐服务返回了空响应（\(statusCode)）。"
-        case .server(let statusCode, let message):
-            "请求失败（\(statusCode)）：\(message)"
+            L10n.format("ui.error.api.empty_response", statusCode)
+        case .server(let statusCode, _):
+            L10n.format("ui.error.api.server_code", statusCode)
         case .noPlayableSource:
-            "当前歌曲可能因版权或地区限制，没有可用的播放地址。"
+            L10n.string("ui.error.api.no_playable_source")
         case .notLoggedIn:
-            "请先登录网易云音乐。"
+            L10n.string("ui.error.api.login_required")
         }
     }
 }
@@ -52,11 +55,31 @@ final class NeteaseAPI {
     private let settings: AppSettings
 
     @ObservationIgnored
+    private let pathMonitor = NWPathMonitor()
+
+    private(set) var isCellularData = false
+
+    @ObservationIgnored
     let client: NeteaseDirectClient
+
+    private var playbackQuality: MusicQuality {
+        isCellularData ? settings.cellularQuality : settings.quality
+    }
 
     init(settings: AppSettings, session: URLSession = .shared) {
         self.settings = settings
         client = NeteaseDirectClient(settings: settings, session: session)
+        pathMonitor.pathUpdateHandler = { [weak self] path in
+            let isCellular = path.usesInterfaceType(.cellular)
+            Task { @MainActor [weak self] in
+                self?.isCellularData = isCellular
+            }
+        }
+        pathMonitor.start(queue: DispatchQueue(label: "MeloX.NetworkMonitor"))
+    }
+
+    deinit {
+        pathMonitor.cancel()
     }
 
     func recommendedPlaylists(limit: Int = 10) async throws -> [Playlist] {
@@ -108,37 +131,33 @@ final class NeteaseAPI {
 
     func playlist(
         id: Int,
-        trackLimit: Int = 100
+        trackLimit: Int? = 100
     ) async throws -> Playlist {
-        let requestedTrackCount = min(max(trackLimit, 0), 100)
+        let embeddedTrackCount = min(max(trackLimit ?? 100, 0), 100)
         let response: PlaylistDetailResponse = try await client.eapi(
             "/api/v6/playlist/detail",
-            data: ["id": id, "n": requestedTrackCount, "s": 8]
+            data: ["id": id, "n": embeddedTrackCount, "s": 8]
         )
         var playlist = response.playlist
         guard !playlist.trackIDs.isEmpty else {
-            if playlist.tracks.count > requestedTrackCount {
+            if let trackLimit,
+               playlist.tracks.count > trackLimit {
                 playlist.tracks = Array(
-                    playlist.tracks.prefix(requestedTrackCount)
+                    playlist.tracks.prefix(max(trackLimit, 0))
                 )
             }
             return playlist
         }
 
-        let pageIDs = playlist.trackIDs
-            .prefix(requestedTrackCount)
-            .map(\.id)
-        var detailsByID: [Int: Song] = [:]
-        for song in playlist.tracks {
-            detailsByID[song.id] = song
+        let requestedTrackIDs = if let trackLimit {
+            Array(playlist.trackIDs.prefix(max(trackLimit, 0)).map(\.id))
+        } else {
+            playlist.trackIDs.map(\.id)
         }
-        let missingIDs = pageIDs.filter { detailsByID[$0] == nil }
-        if !missingIDs.isEmpty {
-            for song in try await songDetails(ids: missingIDs) {
-                detailsByID[song.id] = song
-            }
-        }
-        playlist.tracks = pageIDs.compactMap { detailsByID[$0] }
+        playlist.tracks = try await songDetailsCollection(
+            ids: requestedTrackIDs,
+            prefetched: playlist.tracks
+        )
         return playlist
     }
 
@@ -198,6 +217,65 @@ final class NeteaseAPI {
             )
         }
         return response.songs
+    }
+
+    func songDetailsCollection(
+        ids: [Int],
+        prefetched: [Song] = []
+    ) async throws -> [Song] {
+        guard !ids.isEmpty else { return [] }
+
+        var detailsByID = Dictionary(
+            prefetched.map { ($0.id, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        let missingIDs = ids.filter { detailsByID[$0] == nil }
+
+        for start in stride(from: 0, to: missingIDs.count, by: 100) {
+            try Task.checkCancellation()
+            let end = min(start + 100, missingIDs.count)
+            for song in try await songDetails(
+                ids: Array(missingIDs[start..<end])
+            ) {
+                detailsByID[song.id] = song
+            }
+        }
+
+        return ids.compactMap { detailsByID[$0] }
+    }
+
+    func audioMatches(
+        fingerprint: String,
+        duration: Int
+    ) async throws -> [AudioMatchCandidate] {
+        guard !fingerprint.isEmpty,
+              (1...15).contains(duration),
+              let encodedFingerprint = fingerprint.addingPercentEncoding(
+                withAllowedCharacters: Self.audioMatchQueryValueAllowed
+              ) else {
+            throw APIError.requestEncoding
+        }
+
+        // Mirrors @neteaseapireborn/api/module/audio_match.js exactly:
+        // this is NetEase's original public matcher, not a proxy route.
+        var components = URLComponents(
+            string: "https://interface.music.163.com/api/music/audio/match"
+        )
+        components?.percentEncodedQuery = [
+            "sessionId=0123456789abcdef",
+            "algorithmCode=shazam_v2",
+            "duration=\(duration)",
+            "rawdata=\(encodedFingerprint)",
+            "times=1",
+            "decrypt=1",
+        ].joined(separator: "&")
+        guard let url = components?.url else {
+            throw APIError.requestEncoding
+        }
+
+        let response: AudioMatchResponse = try await client.get(url)
+        try validate(responseCode: response.code)
+        return response.data?.result ?? []
     }
 
     func songDetailsPage(
@@ -285,24 +363,42 @@ final class NeteaseAPI {
     func playbackSource(id: Int) async throws -> PlaybackSource {
         try await playbackSource(
             id: id,
-            bitrate: Int(settings.quality.bitrate) ?? 320_000
+            quality: playbackQuality,
+            availability: .unknown
         )
     }
 
-    private func playbackSource(id: Int, bitrate: Int) async throws -> PlaybackSource {
+    func playbackSource(for song: Song) async throws -> PlaybackSource {
+        try await playbackSource(
+            id: song.id,
+            quality: playbackQuality,
+            availability: song.audioAvailability
+        )
+    }
+
+    private func playbackSource(
+        id: Int,
+        quality: MusicQuality,
+        availability: SongAudioAvailability
+    ) async throws -> PlaybackSource {
         do {
-            let response: SongURLResponse = try await client.eapi(
-                "/api/song/enhance/player/url",
-                data: ["ids": "[\"\(id)\"]", "br": bitrate]
-            )
-            guard let source = response.data.first(where: { $0.id == id }) else {
-                throw APIError.noPlayableSource
+            for candidate in quality.playbackCandidates(
+                for: availability
+            ) {
+                do {
+                    return try await requestPlaybackSource(
+                        id: id,
+                        quality: candidate
+                    )
+                } catch is CancellationError {
+                    throw CancellationError()
+                } catch APIError.noPlayableSource {
+                    continue
+                }
             }
-            guard let string = source.url,
-                  let url = securePlaybackURL(from: string) else {
-                throw APIError.noPlayableSource
-            }
-            return PlaybackSource(url: url, bitrate: source.bitrate, format: source.format)
+            throw APIError.noPlayableSource
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
             // YesPlayMusic 在未登录时使用网易云官方外链。iOS 先尝试上面的
             // HTTPS 化原始音源，仅在失败时保留这个官方兜底，避免静默卡在 00:00。
@@ -310,37 +406,108 @@ final class NeteaseAPI {
                   let url = URL(string: "https://music.163.com/song/media/outer/url?id=\(id)") else {
                 throw error
             }
-            return PlaybackSource(url: url, bitrate: nil, format: "mp3")
+            return PlaybackSource(
+                url: url,
+                bitrate: nil,
+                format: "mp3",
+                quality: nil
+            )
         }
     }
 
-    func downloadSource(id: Int, quality: MusicQuality) async throws -> PlaybackSource {
+    private func requestPlaybackSource(
+        id: Int,
+        quality: MusicQuality
+    ) async throws -> PlaybackSource {
+        // Mirrors @neteaseapireborn/api/module/song_url_v1.js.
+        var data: [String: Any] = [
+            "ids": "[\(id)]",
+            "level": quality.apiLevel,
+            "encodeType": "flac",
+        ]
+        if quality.requiresImmersiveType {
+            data["immerseType"] = "c51"
+        }
+        let response: SongURLResponse = try await client.eapi(
+            "/api/song/enhance/player/url/v1",
+            data: data
+        )
+        guard let source = response.data.first(where: { $0.id == id }),
+              let string = source.url,
+              let url = securePlaybackURL(from: string) else {
+            throw APIError.noPlayableSource
+        }
+        return PlaybackSource(
+            url: url,
+            bitrate: source.bitrate,
+            format: source.format,
+            quality: source.level.flatMap(MusicQuality.init(apiLevel:))
+        )
+    }
+
+    func downloadSource(
+        for song: Song,
+        quality: MusicQuality
+    ) async throws -> PlaybackSource {
         do {
-            // Mirrors @neteaseapireborn/api/module/song_download_url.js.
-            let response: SongDownloadURLResponse = try await client.eapi(
-                "/api/song/enhance/download/url",
-                data: ["id": id, "br": quality.downloadBitrate]
-            )
-            guard let source = response.data,
-                  source.id == id,
-                  source.freeTrialInfo == nil,
-                  let string = source.url,
-                  let url = securePlaybackURL(from: string) else {
-                throw APIError.noPlayableSource
+            for candidate in quality.playbackCandidates(
+                for: song.audioAvailability
+            ) {
+                do {
+                    return try await requestDownloadSource(
+                        id: song.id,
+                        quality: candidate
+                    )
+                } catch is CancellationError {
+                    throw CancellationError()
+                } catch APIError.noPlayableSource {
+                    continue
+                }
             }
-            return PlaybackSource(
-                url: url,
-                bitrate: source.bitrate,
-                format: source.format
-            )
+            throw APIError.noPlayableSource
         } catch is CancellationError {
             throw CancellationError()
         } catch {
             // The dedicated download route can require account privileges.
             // The reference player caches the original player URL as its
             // compatibility path, so preserve that behavior here as well.
-            return try await playbackSource(id: id, bitrate: quality.downloadBitrate)
+            return try await playbackSource(
+                id: song.id,
+                quality: quality,
+                availability: song.audioAvailability
+            )
         }
+    }
+
+    private func requestDownloadSource(
+        id: Int,
+        quality: MusicQuality
+    ) async throws -> PlaybackSource {
+        // Mirrors @neteaseapireborn/api/module/song_download_url_v1.js.
+        var data: [String: Any] = [
+            "id": id,
+            "level": quality.apiLevel,
+        ]
+        if quality.requiresImmersiveType {
+            data["immerseType"] = "c51"
+        }
+        let response: SongDownloadURLResponse = try await client.eapi(
+            "/api/song/enhance/download/url/v1",
+            data: data
+        )
+        guard let source = response.data,
+              source.id == id,
+              source.freeTrialInfo == nil,
+              let string = source.url,
+              let url = securePlaybackURL(from: string) else {
+            throw APIError.noPlayableSource
+        }
+        return PlaybackSource(
+            url: url,
+            bitrate: source.bitrate,
+            format: source.format,
+            quality: source.level.flatMap(MusicQuality.init(apiLevel:))
+        )
     }
 
     func songURL(id: Int) async throws -> URL {
@@ -352,15 +519,59 @@ final class NeteaseAPI {
             "/api/search/get",
             data: ["s": keywords, "type": kind.rawValue, "limit": limit, "offset": 0]
         )
-        return response.result ?? SearchPayload(songs: nil, albums: nil, artists: nil, playlists: nil)
+        return response.result ?? SearchPayload(
+            songs: nil,
+            albums: nil,
+            artists: nil,
+            playlists: nil,
+            podcasts: nil
+        )
     }
 
-    func dailySongs() async throws -> [Song] {
-        let response: DailySongsResponse = try await client.eapi("/api/v3/discovery/recommend/songs")
+    func dailySongs(afresh: Bool = false) async throws -> [Song] {
+        let path = "/api/v3/discovery/recommend/songs"
+        let data: [String: Any] = afresh ? ["afresh": true] : [:]
+        let response: DailySongsResponse
+        do {
+            // Keep the stable transport already used by the iOS client. This
+            // route frequently returns HTTP 200 with an empty weapi body
+            // through CFNetwork, including after its built-in retries.
+            response = try await client.eapi(path, data: data)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch APIError.emptyResponse {
+            // Preserve the original route and `afresh` parameter if eapi ever
+            // returns an empty body, changing only the transport.
+            response = try await client.weapi(path, data: data)
+        }
         return response.data.dailySongs
     }
 
+    func similarSongs(id: Int, limit: Int = 50) async throws -> [Song] {
+        let response: SimilarSongsResponse = try await client.weapi(
+            "/api/v1/discovery/simiSong",
+            data: [
+                "songid": id,
+                "limit": limit,
+                "offset": 0,
+            ]
+        )
+        return response.songs
+    }
+
     func lyrics(id: Int) async throws -> [LyricLine] {
+        let payload = try await neteaseLyrics(id: id)
+        return LyricParser.parse(
+            yrc: payload.yrc ?? "",
+            lrc: payload.lrc ?? "",
+            translatedYRC: payload.translatedYRC ?? "",
+            translatedLRC: payload.translatedLRC ?? "",
+            romanizedYRC: payload.romanizedYRC ?? "",
+            romanizedLRC: payload.romanizedLRC ?? ""
+        )
+    }
+
+    func neteaseLyrics(id: Int) async throws -> NeteaseLyricPayload {
         do {
             let response: LyricResponse = try await client.eapi(
                 "/api/song/lyric/v1",
@@ -376,11 +587,14 @@ final class NeteaseAPI {
                     "yrv": 0,
                 ]
             )
-            return LyricParser.parse(
-                yrc: response.yrc?.lyric ?? "",
-                lrc: response.lrc?.lyric ?? "",
-                translatedYRC: response.ytlrc?.lyric ?? "",
-                translatedLRC: response.tlyric?.lyric ?? ""
+            return NeteaseLyricPayload(
+                yrc: response.yrc?.lyric,
+                lrc: response.lrc?.lyric,
+                translatedYRC: response.ytlrc?.lyric,
+                translatedLRC: response.tlyric?.lyric,
+                romanizedYRC: response.yromalrc?.lyric,
+                romanizedLRC: response.romalrc?.lyric,
+                isPureMusic: response.pureMusic == true
             )
         } catch is CancellationError {
             throw CancellationError()
@@ -391,10 +605,14 @@ final class NeteaseAPI {
                 "/api/song/lyric",
                 data: ["id": id, "tv": -1, "lv": -1, "rv": -1, "kv": -1, "_nmclfl": 1]
             )
-            return LyricParser.parse(
-                yrc: "",
-                lrc: response.lrc?.lyric ?? "",
-                translatedLRC: response.tlyric?.lyric ?? ""
+            return NeteaseLyricPayload(
+                yrc: nil,
+                lrc: response.lrc?.lyric,
+                translatedYRC: nil,
+                translatedLRC: response.tlyric?.lyric,
+                romanizedYRC: nil,
+                romanizedLRC: response.romalrc?.lyric,
+                isPureMusic: response.pureMusic == true
             )
         }
     }
@@ -743,40 +961,14 @@ final class NeteaseAPI {
     }
 
     func addSong(id: Int, toPlaylistID playlistID: Int) async throws {
-        let trackID = String(id)
-        var response: APIStatusResponse = try await client.eapi(
-            "/api/playlist/manipulate/tracks",
-            data: [
-                "op": "add",
-                "pid": playlistID,
-                "trackIds": "[\"\(trackID)\"]",
-                "imme": "true",
-            ],
-            authenticated: true
-        )
-
-        // Mirrors @neteaseapireborn/api's compatibility retry for code 512.
-        if response.code == 512 {
-            response = try await client.eapi(
-                "/api/playlist/manipulate/tracks",
-                data: [
-                    "op": "add",
-                    "pid": playlistID,
-                    "trackIds": "[\"\(trackID)\",\"\(trackID)\"]",
-                    "imme": "true",
-                ],
-                authenticated: true
-            )
-        }
-
-        try validate(responseCode: response.code, message: response.message)
+        try await manipulatePlaylistTrack(id: id, playlistID: playlistID, operation: "add")
     }
 
     func validate(responseCode: Int, message: String? = nil) throws {
         guard (200..<300).contains(responseCode) else {
             throw APIError.server(
                 statusCode: responseCode,
-                message: message ?? "网易云音乐未完成操作。"
+                message: message ?? L10n.string("ui.error.api.operation_incomplete")
             )
         }
     }
@@ -788,4 +980,10 @@ final class NeteaseAPI {
         }
         return components.url
     }
+
+    private static let audioMatchQueryValueAllowed: CharacterSet = {
+        var allowed = CharacterSet.alphanumerics
+        allowed.insert(charactersIn: "-_.!~*'()")
+        return allowed
+    }()
 }

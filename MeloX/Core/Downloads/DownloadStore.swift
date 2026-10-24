@@ -1,9 +1,30 @@
 import Foundation
 import Observation
 
+nonisolated struct DownloadStorageRepairResult: Sendable {
+    static let empty = DownloadStorageRepairResult(
+        removedMissingRecordCount: 0,
+        removedUntrackedByteCount: 0
+    )
+
+    let removedMissingRecordCount: Int
+    let removedUntrackedByteCount: Int64
+
+    var repairedAnything: Bool {
+        removedMissingRecordCount > 0
+            || removedUntrackedByteCount > 0
+    }
+}
+
 @MainActor
 @Observable
 final class DownloadStore {
+    private struct QueuedDownload {
+        let requestID: UUID
+        let song: Song
+        let quality: MusicQuality
+    }
+
     private(set) var downloads: [DownloadedSong]
     private(set) var activeDownloads: [Int: ActiveSongDownload] = [:]
     private(set) var errorMessage: String?
@@ -37,6 +58,15 @@ final class DownloadStore {
 
     @ObservationIgnored
     private var tasks: [Int: Task<Void, Never>] = [:]
+
+    @ObservationIgnored
+    private var requestIDs: [Int: UUID] = [:]
+
+    @ObservationIgnored
+    private var queuedDownloads: [QueuedDownload] = []
+
+    @ObservationIgnored
+    private let maximumConcurrentDownloadCount = 3
 
     init(
         api: NeteaseAPI,
@@ -73,7 +103,7 @@ final class DownloadStore {
             }
             resolvedDatabase = openedDatabase
         } catch {
-            initialErrorMessage = "无法打开下载数据库：\(error.localizedDescription)"
+            initialErrorMessage = L10n.format("ui.error.download.open_database_failed", error.localizedDescription)
         }
 
         self.database = resolvedDatabase
@@ -100,29 +130,59 @@ final class DownloadStore {
         return PlaybackSource(
             url: storage.fileURL(fileName: download.fileName),
             bitrate: download.bitrate,
-            format: download.format
+            format: download.format,
+            quality: download.quality
         )
     }
 
     func start(_ song: Song, quality: MusicQuality) {
+        start([song], quality: quality)
+    }
+
+    func start(_ songs: [Song], quality: MusicQuality) {
+        guard AppFeatureAvailability.downloads,
+              settings.isContentFeatureEnabled(.downloads) else {
+            return
+        }
         guard database != nil else {
             errorMessage = DownloadDatabaseError.unavailable.localizedDescription
             return
         }
-        guard !contains(songID: song.id), !isDownloading(songID: song.id) else { return }
+
         errorMessage = nil
-        activeDownloads[song.id] = ActiveSongDownload(
-            song: song,
-            quality: quality,
-            receivedByteCount: 0,
-            expectedByteCount: nil
-        )
-        tasks[song.id] = Task { [weak self] in
-            await self?.download(song, quality: quality)
+
+        var enqueuedSongIDs: Set<Int> = []
+        for song in songs where enqueuedSongIDs.insert(song.id).inserted {
+            guard !contains(songID: song.id),
+                  !isDownloading(songID: song.id) else {
+                continue
+            }
+
+            let requestID = UUID()
+            requestIDs[song.id] = requestID
+            activeDownloads[song.id] = ActiveSongDownload(
+                song: song,
+                quality: quality,
+                receivedByteCount: 0,
+                expectedByteCount: nil
+            )
+            queuedDownloads.append(
+                QueuedDownload(
+                    requestID: requestID,
+                    song: song,
+                    quality: quality
+                )
+            )
         }
+
+        startQueuedDownloadsIfNeeded()
     }
 
     func recordPlayback(_ song: Song) {
+        guard AppFeatureAvailability.downloads,
+              settings.isContentFeatureEnabled(.downloads) else {
+            return
+        }
         do {
             guard let database else { return }
             let count = try database.recordPlayback(songID: song.id)
@@ -134,14 +194,21 @@ final class DownloadStore {
             }
             start(song, quality: settings.automaticCacheQuality)
         } catch {
-            errorMessage = "无法记录歌曲播放次数：\(error.localizedDescription)"
+            errorMessage = L10n.format("ui.error.download.record_play_count_failed", error.localizedDescription)
         }
     }
 
     func cancel(songID: Int) {
-        tasks[songID]?.cancel()
-        tasks[songID] = nil
+        queuedDownloads.removeAll { $0.song.id == songID }
+        let task = tasks[songID]
+        if let task {
+            task.cancel()
+            return
+        }
+
+        requestIDs[songID] = nil
         activeDownloads[songID] = nil
+        startQueuedDownloadsIfNeeded()
     }
 
     func remove(songID: Int) {
@@ -154,7 +221,7 @@ final class DownloadStore {
             downloads.remove(at: index)
             try storage.removeFile(named: download.fileName)
         } catch {
-            errorMessage = "无法删除已下载歌曲：\(error.localizedDescription)"
+            errorMessage = L10n.format("ui.error.download.delete_song_failed", error.localizedDescription)
         }
     }
 
@@ -177,13 +244,18 @@ final class DownloadStore {
         }
 
         if !failures.isEmpty {
-            errorMessage = "本地歌曲已失效，部分缓存清理失败：\(failures.joined(separator: "；"))"
+            errorMessage = L10n.format(
+                "ui.error.download.partial_cache_cleanup",
+                failures.joined(separator: L10n.string("ui.common.list_separator"))
+            )
         }
     }
 
     func removeAll() {
+        queuedDownloads.removeAll()
         tasks.values.forEach { $0.cancel() }
         tasks.removeAll()
+        requestIDs.removeAll()
         activeDownloads.removeAll()
         do {
             guard let database else { throw DownloadDatabaseError.unavailable }
@@ -191,7 +263,75 @@ final class DownloadStore {
             downloads.removeAll()
             try storage.removeAllFiles()
         } catch {
-            errorMessage = "无法清除下载内容：\(error.localizedDescription)"
+            errorMessage = L10n.format("ui.error.download.clear_failed", error.localizedDescription)
+        }
+    }
+
+    @discardableResult
+    func repairStorage() -> DownloadStorageRepairResult {
+        errorMessage = nil
+        do {
+            guard let database else {
+                throw DownloadDatabaseError.unavailable
+            }
+
+            let missingDownloads = downloads.filter {
+                !storage.containsFile(named: $0.fileName)
+            }
+            let missingSongIDs = Set(
+                missingDownloads.map(\.id)
+            )
+            try database.removeDownloads(
+                songIDs: missingSongIDs
+            )
+            if !missingDownloads.isEmpty {
+                downloads.removeAll {
+                    missingSongIDs.contains($0.id)
+                }
+            }
+
+            let removedByteCount =
+                try storage.removeUntrackedFiles(
+                    keeping: Set(
+                        downloads.map(\.fileName)
+                    )
+                )
+            return DownloadStorageRepairResult(
+                removedMissingRecordCount:
+                    missingDownloads.count,
+                removedUntrackedByteCount:
+                    removedByteCount
+            )
+        } catch {
+            errorMessage =
+                L10n.format("ui.error.download.repair_failed", error.localizedDescription)
+            return .empty
+        }
+    }
+
+    func resetAutomaticCacheHistory() {
+        errorMessage = nil
+        do {
+            guard let database else {
+                throw DownloadDatabaseError.unavailable
+            }
+            try database.clearPlaybackCounts()
+        } catch {
+            errorMessage =
+                L10n.format("ui.error.download.reset_cache_count_failed", error.localizedDescription)
+        }
+    }
+
+    func optimizeStorageDatabase() {
+        errorMessage = nil
+        do {
+            guard let database else {
+                throw DownloadDatabaseError.unavailable
+            }
+            try database.optimizeStorage()
+        } catch {
+            errorMessage =
+                L10n.format("ui.error.download.optimize_database_failed", error.localizedDescription)
         }
     }
 
@@ -199,17 +339,32 @@ final class DownloadStore {
         errorMessage = nil
     }
 
-    private func download(_ song: Song, quality: MusicQuality) async {
+    private func download(
+        _ song: Song,
+        quality: MusicQuality,
+        requestID: UUID
+    ) async {
         defer {
-            tasks[song.id] = nil
-            activeDownloads[song.id] = nil
+            if requestIDs[song.id] == requestID {
+                tasks[song.id] = nil
+                requestIDs[song.id] = nil
+                activeDownloads[song.id] = nil
+            }
+            startQueuedDownloadsIfNeeded()
         }
 
         do {
-            let source = try await api.downloadSource(id: song.id, quality: quality)
+            let source = try await api.downloadSource(
+                for: song,
+                quality: quality
+            )
             try Task.checkCancellation()
             let transfer = try await transferClient.download(from: source.url) { [weak self] progress in
-                self?.updateProgress(progress, songID: song.id)
+                self?.updateProgress(
+                    progress,
+                    songID: song.id,
+                    requestID: requestID
+                )
             }
             let temporaryURL = transfer.temporaryURL
             defer { try? FileManager.default.removeItem(at: temporaryURL) }
@@ -232,7 +387,7 @@ final class DownloadStore {
                 byteCount: installed.byteCount,
                 bitrate: source.bitrate,
                 format: source.format,
-                quality: quality,
+                quality: source.quality ?? quality,
                 downloadedAt: Date()
             )
             do {
@@ -249,7 +404,8 @@ final class DownloadStore {
         } catch let error as URLError where error.code == .cancelled {
             return
         } catch {
-            errorMessage = "《\(song.name)》下载失败：\(error.localizedDescription)"
+            guard requestIDs[song.id] == requestID else { return }
+            errorMessage = L10n.format("ui.error.download.song_failed", song.name, error.localizedDescription)
         }
     }
 
@@ -259,17 +415,46 @@ final class DownloadStore {
             guard let database else { throw DownloadDatabaseError.unavailable }
             try database.removeDownload(songID: songID)
         } catch {
-            errorMessage = "无法更新下载记录：\(error.localizedDescription)"
+            errorMessage = L10n.format("ui.error.download.update_record_failed", error.localizedDescription)
         }
     }
 
     private func updateProgress(
         _ progress: DownloadTransferProgress,
-        songID: Int
+        songID: Int,
+        requestID: UUID
     ) {
-        guard var download = activeDownloads[songID] else { return }
+        guard requestIDs[songID] == requestID,
+              var download = activeDownloads[songID] else {
+            return
+        }
         download.receivedByteCount = progress.receivedByteCount
         download.expectedByteCount = progress.expectedByteCount
         activeDownloads[songID] = download
+    }
+
+    private func startQueuedDownloadsIfNeeded() {
+        while tasks.count < maximumConcurrentDownloadCount,
+              !queuedDownloads.isEmpty {
+            let queuedDownload = queuedDownloads.removeFirst()
+            let songID = queuedDownload.song.id
+            guard requestIDs[songID] == queuedDownload.requestID,
+                  activeDownloads[songID] != nil,
+                  !contains(songID: songID) else {
+                if requestIDs[songID] == queuedDownload.requestID {
+                    requestIDs[songID] = nil
+                    activeDownloads[songID] = nil
+                }
+                continue
+            }
+
+            tasks[songID] = Task { [weak self] in
+                await self?.download(
+                    queuedDownload.song,
+                    quality: queuedDownload.quality,
+                    requestID: queuedDownload.requestID
+                )
+            }
+        }
     }
 }

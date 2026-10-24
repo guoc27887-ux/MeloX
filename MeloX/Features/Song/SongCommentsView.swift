@@ -20,7 +20,7 @@ struct SongCommentsView: View {
             songSummary
 
             if !hotComments.isEmpty {
-                Section("热门评论") {
+                Section("ui.comments.popular") {
                     ForEach(hotComments) { comment in
                         commentRow(comment)
                     }
@@ -30,7 +30,7 @@ struct SongCommentsView: View {
             latestCommentsSection
         }
         .listStyle(.insetGrouped)
-        .navigationTitle("评论")
+        .navigationTitle("ui.comments.title")
         .navigationBarTitleDisplayMode(.inline)
         .refreshable {
             await loadComments()
@@ -68,18 +68,18 @@ struct SongCommentsView: View {
             case .loading where comments.isEmpty:
                 HStack {
                     Spacer()
-                    ProgressView("正在载入评论")
+                    ProgressView("ui.comments.loading")
                     Spacer()
                 }
             case .failed(let message) where comments.isEmpty:
                 VStack(spacing: 12) {
-                    Label("评论加载失败", systemImage: "exclamationmark.bubble")
+                    Label("ui.comments.load_failed", systemImage: "exclamationmark.bubble")
                         .font(.headline)
                     Text(message)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
-                    Button("重试") {
+                    Button("ui.common.retry") {
                         reloadToken += 1
                     }
                 }
@@ -87,7 +87,7 @@ struct SongCommentsView: View {
                 .padding(.vertical, 24)
             default:
                 if comments.isEmpty {
-                    ContentUnavailableView("暂无评论", systemImage: "bubble.left")
+                    ContentUnavailableView("ui.comments.empty", systemImage: "bubble.left")
                 } else {
                     ForEach(comments) { comment in
                         commentRow(comment)
@@ -99,7 +99,11 @@ struct SongCommentsView: View {
                 loadMoreRow
             }
         } header: {
-            Text(commentCount > 0 ? "最新评论 · \(commentCount.formatted())" : "最新评论")
+            Text(
+                commentCount > 0
+                    ? L10n.format("ui.comments.latest_count", commentCount)
+                    : L10n.string("ui.comments.latest")
+            )
         }
     }
 
@@ -113,7 +117,9 @@ struct SongCommentsView: View {
                     .contentShape(.rect)
             }
             .buttonStyle(.plain)
-            .accessibilityHint("打开该评论的 \(comment.replyCount.formatted()) 条回复")
+            .accessibilityHint(
+                L10n.format("ui.comments.open_replies_hint", comment.replyCount)
+            )
         } else {
             SongCommentRow(comment: comment)
         }
@@ -126,7 +132,7 @@ struct SongCommentsView: View {
                     Task { await loadMoreComments() }
                 } label: {
                     VStack(spacing: 4) {
-                        Text("重新载入更多评论")
+                        Text("ui.comments.reload_more")
                         Text(paginationError)
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -137,7 +143,7 @@ struct SongCommentsView: View {
             } else {
                 HStack {
                     Spacer()
-                    ProgressView("载入更多评论")
+                    ProgressView("ui.comments.loading_more")
                     Spacer()
                 }
                 .task {
@@ -210,7 +216,7 @@ struct SongCommentsSheet: View {
                         } label: {
                             Image(systemName: "xmark")
                         }
-                        .accessibilityLabel("关闭评论")
+                        .accessibilityLabel("ui.comments.close")
                     }
                 }
         }

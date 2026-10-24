@@ -93,6 +93,24 @@ final class NeteaseDirectClient {
         throw APIError.invalidResponse
     }
 
+    func get<Response: Decodable>(
+        _ url: URL,
+        userAgent: String =
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148",
+        referer: String? = nil
+    ) async throws -> Response {
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.httpShouldHandleCookies = false
+        request.timeoutInterval = 20
+        request.setValue("*/*", forHTTPHeaderField: "Accept")
+        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+        request.setValue(referer, forHTTPHeaderField: "Referer")
+
+        let (data, response) = try await session.data(for: request)
+        return try decode(data: data, response: response)
+    }
+
     func uploadToNOS(
         fileURL: URL,
         bucket: String,
@@ -181,6 +199,13 @@ final class NeteaseDirectClient {
         request.httpBody = components.percentEncodedQuery?.data(using: .utf8)
 
         let (data, response) = try await session.data(for: request)
+        return try decode(data: data, response: response)
+    }
+
+    private func decode<Response: Decodable>(
+        data: Data,
+        response: URLResponse
+    ) throws -> Response {
         guard let httpResponse = response as? HTTPURLResponse else {
             throw APIError.invalidResponse
         }
@@ -208,10 +233,20 @@ final class NeteaseDirectClient {
     private func responseDescription(_ data: Data, decodingError: Error) -> String {
         guard let text = String(data: data, encoding: .utf8) else {
             let hex = data.prefix(32).map { String(format: "%02X", $0) }.joined()
-            return "数据解析失败（\(data.count) 字节，\(hex)）：\(decodingError.localizedDescription)"
+            return L10n.format(
+                "ui.error.api.decode_with_hex",
+                data.count,
+                hex,
+                decodingError.localizedDescription
+            )
         }
         let compact = text.replacingOccurrences(of: "\n", with: " ")
-        return "数据解析失败（\(data.count) 字节）：\(String(compact.prefix(180)))；\(decodingError.localizedDescription)"
+        return L10n.format(
+            "ui.error.api.decode",
+            data.count,
+            String(compact.prefix(180)),
+            decodingError.localizedDescription
+        )
     }
 
     private var csrfToken: String {

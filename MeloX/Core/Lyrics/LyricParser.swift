@@ -5,45 +5,39 @@ enum LyricParser {
         yrc: String,
         lrc: String,
         translatedYRC: String = "",
-        translatedLRC: String = ""
+        translatedLRC: String = "",
+        romanizedYRC: String = "",
+        romanizedLRC: String = "",
+        duetLRC: String? = nil
     ) -> [LyricLine] {
         let synchronizedLines = parseYRC(yrc)
         let lineSynchronizedLines = parseLRC(lrc)
         let lines = synchronizedLines.isEmpty ? lineSynchronizedLines : synchronizedLines
         guard !lines.isEmpty else { return [] }
 
-        let synchronizedTranslations = parseYRC(translatedYRC)
-        let translatedYRCFallback = synchronizedTranslations.isEmpty
-            ? parseLRC(translatedYRC)
-            : synchronizedTranslations
-        let lineSynchronizedTranslations = parseLRC(translatedLRC)
-
-        let directlyTranslatedLines = attachTranslations(
-            translatedYRCFallback,
-            to: lines
+        let translatedLines = attachSecondaryLyrics(
+            synchronizedSource: translatedYRC,
+            lineSynchronizedSource: translatedLRC,
+            synchronizedOriginalLines: synchronizedLines,
+            lineSynchronizedOriginalLines: lineSynchronizedLines,
+            to: lines,
+            kind: .translation
         )
-        guard !lineSynchronizedTranslations.isEmpty else {
-            return directlyTranslatedLines
-        }
-
-        if synchronizedLines.isEmpty || lineSynchronizedLines.isEmpty {
-            return attachTranslations(
-                lineSynchronizedTranslations,
-                to: directlyTranslatedLines
-            )
-        }
-
-        let translatedOriginalLines = attachTranslations(
-            lineSynchronizedTranslations,
-            to: lineSynchronizedLines
+        let romanizedLines = attachSecondaryLyrics(
+            synchronizedSource: romanizedYRC,
+            lineSynchronizedSource: romanizedLRC,
+            synchronizedOriginalLines: synchronizedLines,
+            lineSynchronizedOriginalLines: lineSynchronizedLines,
+            to: translatedLines,
+            kind: .romanization
         )
-        let canonicallyTranslatedLines = transferTranslations(
-            from: translatedOriginalLines,
-            to: lines
+        let annotatedLines = attachRomanizationTimings(
+            parseYRC(romanizedYRC),
+            to: romanizedLines
         )
-        return fillMissingTranslations(
-            in: canonicallyTranslatedLines,
-            from: directlyTranslatedLines
+        return LyricDuetParser.apply(
+            lrc: duetLRC ?? lrc,
+            to: annotatedLines
         )
     }
 
@@ -52,11 +46,13 @@ enum LyricParser {
             .split(whereSeparator: \Character.isNewline)
             .flatMap { parseLRCLines($0) }
             .sorted { $0.time < $1.time }
-        return inferringDurations(in: lines)
+        return inferringDurations(
+            in: assigningStableIDs(to: lines, kind: "lrc")
+        )
     }
 
     static func parseYRC(_ source: String) -> [LyricLine] {
-        source
+        let lines = source
             .split(whereSeparator: \Character.isNewline)
             .compactMap { rawLine in
                 let line = String(rawLine).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -66,6 +62,27 @@ enum LyricParser {
                 return parseYRCSyllableLine(line)
             }
             .sorted { $0.time < $1.time }
+        return assigningStableIDs(to: lines, kind: "yrc")
+    }
+
+    private static func assigningStableIDs(
+        to lines: [LyricLine],
+        kind: String
+    ) -> [LyricLine] {
+        var occurrenceBySignature: [String: Int] = [:]
+        return lines.map { line in
+            let signature = "\(line.time.bitPattern):\(stableTextHash(line.text))"
+            let occurrence = occurrenceBySignature[signature, default: 0]
+            occurrenceBySignature[signature] = occurrence + 1
+            return LyricLine(
+                id: "\(kind):\(signature):\(occurrence)",
+                copying: line
+            )
+        }
+    }
+
+    private static func stableTextHash(_ text: String) -> String {
+        LyricLine.stableTextHash(text)
     }
 
     private static func parseLRCLines(_ rawLine: Substring) -> [LyricLine] {
@@ -89,7 +106,11 @@ enum LyricParser {
             let rawSeconds = storage.substring(with: match.range(at: 2))
                 .replacingOccurrences(of: ":", with: ".")
             guard let seconds = Double(rawSeconds) else { return nil }
-            return LyricLine(time: Double(minutes) * 60 + seconds, text: text)
+            return LyricLine(
+                time: Double(minutes) * 60 + seconds,
+                timingKind: .lineSynchronized,
+                text: text
+            )
         }
     }
 
@@ -104,18 +125,23 @@ enum LyricParser {
             } ?? estimatedLastLineDuration(for: line.text)
 
             return LyricLine(
+                id: line.id,
                 time: line.time,
                 duration: inferredDuration,
+                timingKind: line.timingKind,
                 text: line.text,
                 syllables: line.syllables,
-                translation: line.translation
+                romanization: line.romanization,
+                romanizationSyllables: line.romanizationSyllables,
+                translation: line.translation,
+                agent: line.agent,
+                backgroundVocal: line.backgroundVocal
             )
         }
     }
 
     private static func estimatedLastLineDuration(for text: String) -> TimeInterval {
-        let visibleCharacterCount = text.filter { !$0.isWhitespace }.count
-        return min(max(Double(visibleCharacterCount) * 0.32, 2), 8)
+        LyricVocalDurationEstimator.estimatedDuration(for: text)
     }
 
     private static func parseYRCSyllableLine(_ line: String) -> LyricLine? {
@@ -176,18 +202,74 @@ enum LyricParser {
         )
     }
 
-    private static func attachTranslations(
-        _ translations: [LyricLine],
-        to lines: [LyricLine]
+    private static func attachSecondaryLyrics(
+        synchronizedSource: String,
+        lineSynchronizedSource: String,
+        synchronizedOriginalLines: [LyricLine],
+        lineSynchronizedOriginalLines: [LyricLine],
+        to lines: [LyricLine],
+        kind: SecondaryLyricKind
     ) -> [LyricLine] {
-        guard !translations.isEmpty else { return lines }
+        let synchronizedSecondaryLines = parseYRC(synchronizedSource)
+        let synchronizedFallback = synchronizedSecondaryLines.isEmpty
+            ? parseLRC(synchronizedSource)
+            : synchronizedSecondaryLines
+        let lineSynchronizedSecondaryLines = parseLRC(
+            lineSynchronizedSource
+        )
+
+        let directlyAnnotatedLines = attachSecondaryLines(
+            synchronizedFallback,
+            to: lines,
+            kind: kind
+        )
+        guard !lineSynchronizedSecondaryLines.isEmpty else {
+            return directlyAnnotatedLines
+        }
+
+        if synchronizedOriginalLines.isEmpty
+            || lineSynchronizedOriginalLines.isEmpty {
+            return attachSecondaryLines(
+                lineSynchronizedSecondaryLines,
+                to: directlyAnnotatedLines,
+                kind: kind
+            )
+        }
+
+        let annotatedOriginalLines = attachSecondaryLines(
+            lineSynchronizedSecondaryLines,
+            to: lineSynchronizedOriginalLines,
+            kind: kind
+        )
+        let canonicallyAnnotatedLines = transferSecondaryLyrics(
+            from: annotatedOriginalLines,
+            to: directlyAnnotatedLines,
+            kind: kind
+        )
+        return fillMissingSecondaryLyrics(
+            in: canonicallyAnnotatedLines,
+            from: directlyAnnotatedLines,
+            kind: kind
+        )
+    }
+
+    private static func attachSecondaryLines(
+        _ secondaryLines: [LyricLine],
+        to lines: [LyricLine],
+        kind: SecondaryLyricKind
+    ) -> [LyricLine] {
+        guard !secondaryLines.isEmpty else { return lines }
 
         var lineIndex = 0
-        var translationsByLineIndex: [Int: String] = [:]
-        for translation in translations {
+        var secondaryTextByLineIndex: [Int: String] = [:]
+        for secondaryLine in secondaryLines {
             while lineIndex + 1 < lines.count {
-                let currentDistance = abs(lines[lineIndex].time - translation.time)
-                let nextDistance = abs(lines[lineIndex + 1].time - translation.time)
+                let currentDistance = abs(
+                    lines[lineIndex].time - secondaryLine.time
+                )
+                let nextDistance = abs(
+                    lines[lineIndex + 1].time - secondaryLine.time
+                )
                 let shouldAdvance = nextDistance < currentDistance
                     || (nextDistance == currentDistance
                         && !lines[lineIndex].isSyllableSynced
@@ -197,35 +279,80 @@ enum LyricParser {
             }
 
             let line = lines[lineIndex]
-            let normalizedTranslation = translation.text
+            let normalizedSecondaryText = secondaryLine.text
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            guard abs(line.time - translation.time) <= translationTolerance,
-                  !normalizedTranslation.isEmpty,
-                  normalizedTranslation != line.text.trimmingCharacters(in: .whitespacesAndNewlines),
-                  translationsByLineIndex[lineIndex] == nil else { continue }
-            translationsByLineIndex[lineIndex] = normalizedTranslation
+            guard abs(line.time - secondaryLine.time) <= annotationTolerance,
+                  !normalizedSecondaryText.isEmpty,
+                  normalizedSecondaryText
+                    != line.text.trimmingCharacters(
+                        in: .whitespacesAndNewlines
+                    ),
+                  secondaryTextByLineIndex[lineIndex] == nil else {
+                continue
+            }
+            secondaryTextByLineIndex[lineIndex] = normalizedSecondaryText
         }
 
         return lines.enumerated().map { index, line in
-            line.attachingTranslation(
-                translationsByLineIndex[index] ?? line.translation
+            kind.attaching(
+                secondaryTextByLineIndex[index] ?? kind.text(in: line),
+                to: line
             )
         }
     }
 
-    /// Standard translations (`tlyric`) share the ordinary LRC timeline while
-    /// the displayed lyric may use YRC. Match the translated LRC back to YRC by
-    /// normalized original text first, then use a narrow timestamp fallback.
-    private static func transferTranslations(
+    private static func attachRomanizationTimings(
+        _ romanizedLines: [LyricLine],
+        to lines: [LyricLine]
+    ) -> [LyricLine] {
+        let timedRomanizedLines = romanizedLines.filter {
+            !$0.syllables.isEmpty
+        }
+        guard !timedRomanizedLines.isEmpty else { return lines }
+
+        var lineIndex = 0
+        var romanizedLineByIndex: [Int: LyricLine] = [:]
+        for romanizedLine in timedRomanizedLines {
+            while lineIndex + 1 < lines.count,
+                  abs(lines[lineIndex + 1].time - romanizedLine.time)
+                    < abs(lines[lineIndex].time - romanizedLine.time) {
+                lineIndex += 1
+            }
+
+            guard abs(lines[lineIndex].time - romanizedLine.time)
+                    <= romanizationTimingTolerance,
+                  romanizedLineByIndex[lineIndex] == nil else {
+                continue
+            }
+            romanizedLineByIndex[lineIndex] = romanizedLine
+        }
+
+        return lines.enumerated().map { index, line in
+            guard let romanizedLine = romanizedLineByIndex[index] else {
+                return line
+            }
+            return line.attachingRomanization(
+                romanizedLine.text,
+                romanizationSyllables: romanizedLine.syllables
+            )
+        }
+    }
+
+    /// Standard secondary lyrics (`tlyric` and `romalrc`) share the ordinary
+    /// LRC timeline while the displayed lyric may use YRC. Match the annotated
+    /// LRC back to YRC by normalized original text first, then use a narrow
+    /// timestamp fallback.
+    private static func transferSecondaryLyrics(
         from sourceLines: [LyricLine],
-        to targetLines: [LyricLine]
+        to targetLines: [LyricLine],
+        kind: SecondaryLyricKind
     ) -> [LyricLine] {
         guard !sourceLines.isEmpty, !targetLines.isEmpty else { return targetLines }
 
         var minimumTargetIndex = 0
-        var translationsByTargetIndex: [Int: String] = [:]
+        var secondaryTextByTargetIndex: [Int: String] = [:]
         for sourceLine in sourceLines {
-            guard let translation = sourceLine.translation,
+            guard let secondaryText = kind.text(in: sourceLine),
                   minimumTargetIndex < targetLines.count else { continue }
 
             let candidateRange = minimumTargetIndex..<targetLines.count
@@ -246,7 +373,8 @@ enum LyricParser {
                 .filter { index in
                     let targetLine = targetLines[index]
                     return targetLine.isSyllableSynced
-                        && abs(targetLine.time - sourceLine.time) <= translationTolerance
+                        && abs(targetLine.time - sourceLine.time)
+                            <= annotationTolerance
                 }
                 .min { left, right in
                     abs(targetLines[left].time - sourceLine.time)
@@ -254,46 +382,51 @@ enum LyricParser {
                 }
 
             guard let targetIndex else { continue }
-            translationsByTargetIndex[targetIndex] = translation
+            secondaryTextByTargetIndex[targetIndex] = secondaryText
             minimumTargetIndex = targetIndex + 1
         }
 
         return targetLines.enumerated().map { index, line in
-            line.attachingTranslation(
-                translationsByTargetIndex[index] ?? line.translation
+            kind.attaching(
+                secondaryTextByTargetIndex[index] ?? kind.text(in: line),
+                to: line
             )
         }
     }
 
-    private static func fillMissingTranslations(
+    private static func fillMissingSecondaryLyrics(
         in primaryLines: [LyricLine],
-        from fallbackLines: [LyricLine]
+        from fallbackLines: [LyricLine],
+        kind: SecondaryLyricKind
     ) -> [LyricLine] {
         guard primaryLines.count == fallbackLines.count else { return primaryLines }
 
         return primaryLines.indices.map { index in
             let primaryLine = primaryLines[index]
             let fallbackLine = fallbackLines[index]
-            guard primaryLine.translation == nil,
-                  let fallbackTranslation = fallbackLine.translation else {
+            guard kind.text(in: primaryLine) == nil,
+                  let fallbackText = kind.text(in: fallbackLine) else {
                 return primaryLine
             }
 
-            let normalizedFallback = normalizedLyricText(fallbackTranslation)
+            let normalizedFallback = normalizedLyricText(fallbackText)
             let neighboringRange = max(index - 1, 0)...min(
                 index + 1,
                 primaryLines.count - 1
             )
             let isDuplicateOfNeighbor = neighboringRange.contains { neighborIndex in
-                guard let neighborTranslation = primaryLines[neighborIndex].translation else {
+                guard let neighborText = kind.text(
+                    in: primaryLines[neighborIndex]
+                ) else {
                     return false
                 }
-                return normalizedLyricText(neighborTranslation) == normalizedFallback
+                return normalizedLyricText(neighborText)
+                    == normalizedFallback
             }
             guard !isDuplicateOfNeighbor else {
                 return primaryLine
             }
-            return primaryLine.attachingTranslation(fallbackTranslation)
+            return kind.attaching(fallbackText, to: primaryLine)
         }
     }
 
@@ -333,21 +466,48 @@ enum LyricParser {
         TimeInterval(milliseconds) / 1_000
     }
 
-    /// YRC stores each syllable as `(absoluteStartMilliseconds,durationMilliseconds,metadata)`.
-    /// The metadata field is intentionally ignored, matching Lyricify Lyrics Helper's parser.
+    /// YRC stores `(start,duration,metadata)` while QQ QRC stores
+    /// `(start,duration)`. Both timelines use absolute millisecond offsets.
     private static let syllableExpression = try! NSRegularExpression(
-        pattern: #"\((\d+),(\d+),[^)]*\)"#
+        pattern: #"\((\d+),(\d+)(?:,[^)]*)?\)"#
     )
 
     private static let lrcTimestampExpression = try! NSRegularExpression(
         pattern: #"\[(\d+):(\d+(?:[\.:]\d+)?)\]"#
     )
 
-    /// Translation tracks occasionally differ from the YRC line header by a
-    /// few hundred milliseconds. A narrow tolerance preserves alignment while
-    /// avoiding reuse across neighboring lyric lines.
-    private static let translationTolerance: TimeInterval = 0.75
+    /// Secondary lyric tracks occasionally differ from the YRC line header by
+    /// a few hundred milliseconds. A narrow tolerance preserves alignment
+    /// while avoiding reuse across neighboring lyric lines.
+    private static let annotationTolerance: TimeInterval = 0.75
+    /// Apple rejects transliteration lines whose authored start time does not
+    /// match the primary line. Keep a tiny allowance for millisecond parsing,
+    /// then fall back to a static annotation instead of inventing timings.
+    private static let romanizationTimingTolerance: TimeInterval = 0.01
     private static let textMatchWindow: TimeInterval = 5
+}
+
+private enum SecondaryLyricKind {
+    case translation
+    case romanization
+
+    func text(in line: LyricLine) -> String? {
+        switch self {
+        case .translation:
+            line.translation
+        case .romanization:
+            line.romanization
+        }
+    }
+
+    func attaching(_ text: String?, to line: LyricLine) -> LyricLine {
+        switch self {
+        case .translation:
+            line.attachingTranslation(text)
+        case .romanization:
+            line.attachingRomanization(text)
+        }
+    }
 }
 
 private struct YRCCredits: Decodable {

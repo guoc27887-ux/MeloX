@@ -6,8 +6,12 @@ struct AlbumDetailView: View {
 
     @Environment(NeteaseAPI.self) private var api
     @Environment(LibraryStore.self) private var library
+    @Environment(DownloadStore.self) private var downloads
+    @Environment(AppSettings.self) private var settings
     @Environment(\.colorScheme) private var systemColorScheme
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
+    @Environment(\.setTabViewBottomAccessorySuppressed)
+    private var setTabViewBottomAccessorySuppressed
 
     @State private var album: Album?
     @State private var songs: [Song] = []
@@ -19,6 +23,8 @@ struct AlbumDetailView: View {
     @State private var artworkPalette: ArtworkDetailPalette?
     @State private var blurredBackdropImage: CGImage?
     @State private var searchQuery = ""
+    @State private var downloadCoordinator =
+        MusicCollectionDownloadCoordinator()
 
     init(context: AlbumRouteContext) {
         let cachedAssets = ArtworkAccentColorProvider.cachedDetailAssets(
@@ -42,6 +48,10 @@ struct AlbumDetailView: View {
             isLoading: isInitialLoading,
             failureMessage: initialFailureMessage,
             isSubscribed: isSubscribed,
+            downloadCoordinator:
+                downloadsEnabled
+                    ? downloadCoordinator
+                    : nil,
             onToggleSubscription: toggleSubscription,
             onRetry: { reloadToken += 1 },
             onRefresh: { await load() }
@@ -51,14 +61,45 @@ struct AlbumDetailView: View {
         .searchable(
             text: $searchQuery,
             placement: .navigationBarDrawer(displayMode: .always),
-            prompt: Text("在专辑中搜索")
+            prompt: Text("ui.album.search_prompt")
         )
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbarColorScheme(interfaceColorScheme, for: .navigationBar, .tabBar)
         .toolbar {
-            albumToolbar
+            if downloadsEnabled,
+               downloadCoordinator.isSelecting {
+                downloadSelectionToolbar
+            } else {
+                albumToolbar
+            }
         }
+        .toolbarVisibility(
+            downloadsEnabled
+                && downloadCoordinator.isSelecting
+                ? .hidden
+                : .automatic,
+            for: .tabBar
+        )
         .environment(\.colorScheme, interfaceColorScheme)
+        .onAppear {
+            updateTabViewBottomAccessoryVisibility()
+        }
+        .onChange(of: downloadCoordinator.isSelecting) {
+            updateTabViewBottomAccessoryVisibility()
+        }
+        .onChange(of: downloadsEnabled) { _, isEnabled in
+            if !isEnabled {
+                downloadCoordinator.finishSelection()
+            }
+            updateTabViewBottomAccessoryVisibility()
+        }
+        .onDisappear {
+            setTabViewBottomAccessorySuppressed(false)
+        }
+        .onChange(of: downloadableSongIDs) { _, songIDs in
+            guard downloadCoordinator.isSelecting else { return }
+            downloadCoordinator.retainSelection(in: Set(songIDs))
+        }
         .task(id: reloadToken) {
             guard album == nil else { return }
             await load(waitingForNavigationTransition: true)
@@ -89,7 +130,7 @@ struct AlbumDetailView: View {
             }
         }
         .alert(
-            "专辑操作失败",
+            "ui.album.operation_failed",
             isPresented: Binding(
                 get: { operationError != nil },
                 set: { isPresented in
@@ -99,16 +140,43 @@ struct AlbumDetailView: View {
                 }
             )
         ) {
-            Button("好", role: .cancel) {
+            Button("ui.common.ok", role: .cancel) {
                 operationError = nil
             }
         } message: {
-            Text(operationError ?? "未知错误")
+            Text(operationError ?? L10n.string("ui.common.unknown_error"))
+        }
+        .alert(
+            "ui.downloads.prepare_failed",
+            isPresented: Binding(
+                get: {
+                    downloadsEnabled
+                        && downloadCoordinator.errorMessage != nil
+                },
+                set: { isPresented in
+                    if !isPresented {
+                        downloadCoordinator.clearError()
+                    }
+                }
+            )
+        ) {
+            Button("ui.common.ok", role: .cancel) {
+                downloadCoordinator.clearError()
+            }
+        } message: {
+            Text(
+                downloadCoordinator.errorMessage
+                    ?? L10n.string("ui.album.load_songs_failed")
+            )
         }
     }
 
     private var displayedAlbum: Album {
         album ?? initialAlbum
+    }
+
+    private var downloadsEnabled: Bool {
+        settings.isContentFeatureEnabled(.downloads)
     }
 
     private var resolvedPalette: ArtworkDetailPalette {
@@ -137,34 +205,110 @@ struct AlbumDetailView: View {
         return message
     }
 
+    private var downloadableSongIDs: [Int] {
+        guard downloadsEnabled else { return [] }
+        let unavailableSongIDs = Set(downloads.downloads.map(\.id))
+            .union(downloads.activeDownloads.keys)
+        return MusicCollectionDownloadCoordinator.songIDs(in: songs)
+            .filter { !unavailableSongIDs.contains($0) }
+    }
+
+    private func updateTabViewBottomAccessoryVisibility() {
+        setTabViewBottomAccessorySuppressed(
+            downloadsEnabled
+                && downloadCoordinator.isSelecting
+        )
+    }
+
     @ToolbarContentBuilder
     private var albumToolbar: some ToolbarContent {
         ToolbarItemGroup(placement: .topBarTrailing) {
+            if downloadsEnabled,
+               downloadCoordinator.isPreparing {
+                ProgressView()
+                    .accessibilityLabel(
+                        L10n.format(
+                            "ui.downloads.preparing_song_count",
+                            downloadCoordinator.preparingSongCount
+                        )
+                    )
+            }
+
             Menu {
                 NeteaseShareMenuContent(resource: .album(displayedAlbum))
             } label: {
                 Image(systemName: "square.and.arrow.up")
             }
-            .accessibilityLabel("分享专辑")
+            .accessibilityLabel("ui.album.share")
 
             Menu {
+                if downloadsEnabled {
+                    MusicCollectionDownloadMenuContent(
+                        coordinator: downloadCoordinator,
+                        downloadableSongCount:
+                            downloadableSongIDs.count,
+                        onDownloadAll: { quality in
+                            startDownloadAll(quality: quality)
+                        }
+                    )
+
+                    Divider()
+                }
+
                 if let artist = displayedAlbum.artists.first {
                     NavigationLink(value: MusicRoute.artist(artist.id)) {
-                        Label("查看歌手", systemImage: "person")
+                        Label("ui.artist.view", systemImage: "person")
                     }
                 }
 
                 Button {
                     Task { await load() }
                 } label: {
-                    Label("刷新", systemImage: "arrow.clockwise")
+                    Label("ui.common.refresh", systemImage: "arrow.clockwise")
                 }
             } label: {
                 Image(systemName: "ellipsis")
             }
-            .accessibilityLabel("更多")
+            .accessibilityLabel("ui.common.more")
         }
         .sharedBackgroundVisibility(.visible)
+    }
+
+    @ToolbarContentBuilder
+    private var downloadSelectionToolbar: some ToolbarContent {
+        MusicCollectionDownloadSelectionToolbar(
+            coordinator: downloadCoordinator,
+            downloadableSongIDs: downloadableSongIDs,
+            onDownloadSelection: { quality in
+                startSelectedDownloads(quality: quality)
+            }
+        )
+    }
+
+    private func startDownloadAll(quality: MusicQuality) {
+        guard downloadsEnabled else { return }
+        let songs = songs
+        Task {
+            await downloadCoordinator.downloadAll(
+                in: songs,
+                quality: quality,
+                api: api,
+                downloads: downloads
+            )
+        }
+    }
+
+    private func startSelectedDownloads(quality: MusicQuality) {
+        guard downloadsEnabled else { return }
+        let songs = songs
+        Task {
+            await downloadCoordinator.downloadSelection(
+                in: songs,
+                quality: quality,
+                api: api,
+                downloads: downloads
+            )
+        }
     }
 
     private func toggleSubscription() {
@@ -180,8 +324,8 @@ struct AlbumDetailView: View {
         Task {
             defer { isUpdatingSubscription = false }
             do {
-                try await api.setAlbumSubscribed(
-                    id: id,
+                try await library.setAlbumSubscribed(
+                    displayedAlbum,
                     isSubscribed: targetState
                 )
             } catch {
@@ -207,6 +351,7 @@ struct AlbumDetailView: View {
             songs = loadedSongs
             phase = .loaded
 
+            isSubscribed = library.contains(album: loadedAlbum)
             if library.isLoggedIn,
                let loadedSubscription = try? await api.albumSubscriptionStatus(id: id) {
                 isSubscribed = loadedSubscription

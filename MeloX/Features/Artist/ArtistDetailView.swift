@@ -8,6 +8,9 @@ struct ArtistDetailView: View {
     @Environment(LibraryStore.self) private var library
 
     @State private var artist: Artist?
+    @State private var isFollowed = false
+    @State private var isChangingFollowState = false
+    @State private var followError: String?
     @State private var songs: [Song] = []
     @State private var albums: [Album] = []
     @State private var phase: LoadingPhase = .loading
@@ -17,7 +20,7 @@ struct ArtistDetailView: View {
         Group {
             switch phase {
             case .loading where artist == nil:
-                ProgressView("正在载入歌手")
+                ProgressView("ui.artist.loading")
             case .failed(let message) where artist == nil:
                 ConnectionUnavailableView(message: message) {
                     reloadToken += 1
@@ -28,7 +31,13 @@ struct ArtistDetailView: View {
                 }
             }
         }
-        .navigationTitle(artist?.name ?? "歌手")
+        .alert("ui.desktop.artist.follow_failed", isPresented: Binding(
+            get: { followError != nil },
+            set: { if !$0 { followError = nil } }
+        )) {
+            Button("ui.common.ok", role: .cancel) { followError = nil }
+        } message: { Text(followError ?? "") }
+        .navigationTitle(artist?.name ?? L10n.string("ui.common.artist"))
         .navigationBarTitleDisplayMode(.inline)
         .task(id: reloadToken) {
             guard artist == nil else { return }
@@ -45,23 +54,37 @@ struct ArtistDetailView: View {
                     Text(artist.name)
                         .font(.title.bold())
                     if !artist.aliases.isEmpty {
-                        Text(artist.aliases.joined(separator: " / "))
+                        Text(
+                            L10n.joined(
+                                artist.aliases,
+                                separatorKey: "ui.common.artist_separator"
+                            )
+                        )
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
                     Button {
                         Task { await player.playAll(songs, sourceID: artist.id) }
                     } label: {
-                        Text("播放热门歌曲")
+                        Text("ui.artist.play_popular_songs")
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(songs.isEmpty)
+
+                    Button(
+                        isFollowed ? L10n.string("ui.desktop.artist.following") : L10n.string("ui.desktop.artist.follow"),
+                        systemImage: isFollowed ? "checkmark" : "plus"
+                    ) {
+                        Task { await toggleFollow(artist) }
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(isChangingFollowState || !library.isLoggedIn)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 8)
             }
 
-            Section("热门歌曲") {
+            Section("ui.artist.popular_songs") {
                 ForEach(Array(songs.prefix(20).enumerated()), id: \.element.id) { index, song in
                     Button {
                         Task {
@@ -75,14 +98,19 @@ struct ArtistDetailView: View {
                         Button {
                             library.toggle(song: song)
                         } label: {
-                            Label("收藏", systemImage: library.contains(song: song) ? "heart.slash" : "heart")
+                            Label(
+                                library.contains(song: song)
+                                    ? L10n.string("ui.common.unfavorite")
+                                    : L10n.string("ui.common.favorite"),
+                                systemImage: library.contains(song: song) ? "heart.slash" : "heart"
+                            )
                         }
                         .tint(.pink)
                     }
                 }
             }
 
-            Section("专辑") {
+            Section("ui.common.albums") {
                 ForEach(albums) { album in
                     NavigationLink(value: MusicRoute.album(album)) {
                         HStack(spacing: 12) {
@@ -91,7 +119,7 @@ struct ArtistDetailView: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(album.name)
                                     .lineLimit(1)
-                                Text(album.type ?? "专辑")
+                                Text(album.type ?? L10n.string("ui.common.album"))
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -104,10 +132,27 @@ struct ArtistDetailView: View {
         .listStyle(.insetGrouped)
     }
 
+    private func toggleFollow(_ artist: Artist) async {
+        guard !isChangingFollowState else { return }
+        let previous = isFollowed
+        isFollowed.toggle()
+        isChangingFollowState = true
+        defer { isChangingFollowState = false }
+        do {
+            try await library.setArtistFollowed(artist, isFollowed: isFollowed)
+        } catch {
+            isFollowed = previous
+            followError = error.localizedDescription
+        }
+    }
+
     private func load() async {
         phase = .loading
         do {
             (artist, songs, albums) = try await api.artist(id: id)
+            if let artist {
+                isFollowed = artist.isFollowed || library.contains(artist: artist)
+            }
             phase = .loaded
         } catch is CancellationError {
             return

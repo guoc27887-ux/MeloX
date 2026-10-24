@@ -4,10 +4,12 @@ struct PlaylistTrackList: View {
     let tracks: [Song]
     let sourceID: Int
     let showsArtwork: Bool
+    var onRemoveSong: ((Song) -> Void)?
+    var downloadSelection: MusicCollectionDownloadCoordinator?
 
     var body: some View {
         if tracks.isEmpty {
-            ContentUnavailableView("暂无歌曲", systemImage: "music.note.list")
+            ContentUnavailableView("ui.songs.empty", systemImage: "music.note.list")
                 .foregroundStyle(.primary)
                 .frame(maxWidth: .infinity, minHeight: 180)
         } else {
@@ -18,18 +20,28 @@ struct PlaylistTrackList: View {
                         tracks: tracks,
                         sourceID: sourceID,
                         index: index,
-                        showsArtwork: showsArtwork
+                        showsArtwork: showsArtwork,
+                        downloadSelection: downloadSelection,
+                        onRemoveSong: onRemoveSong
                     )
 
                     if song.id != tracks.last?.id {
                         Divider()
                             .overlay(Color.primary.opacity(0.12))
-                            .padding(.leading, showsArtwork ? 80 : 58)
+                            .padding(
+                                .leading,
+                                (showsArtwork ? 80 : 66)
+                                    + (isSelectingDownloads ? 36 : 0)
+                            )
                             .padding(.trailing, 20)
                     }
                 }
             }
         }
+    }
+
+    private var isSelectingDownloads: Bool {
+        downloadSelection?.isSelecting == true
     }
 }
 
@@ -39,11 +51,14 @@ private struct PlaylistTrackRow: View {
     let sourceID: Int
     let index: Int
     let showsArtwork: Bool
+    let downloadSelection: MusicCollectionDownloadCoordinator?
+    let onRemoveSong: ((Song) -> Void)?
 
     @Environment(\.openMusicRoute) private var openMusicRoute
     @Environment(PlayerStore.self) private var player
     @Environment(LibraryStore.self) private var library
     @Environment(DownloadStore.self) private var downloads
+    @Environment(AppSettings.self) private var settings
 
     @State private var presentedSheet: PlaylistSongSheet?
 
@@ -51,10 +66,39 @@ private struct PlaylistTrackRow: View {
         player.currentSong?.id == song.id
     }
 
+    private var isSelectingDownloads: Bool {
+        downloadSelection?.isSelecting == true
+    }
+
+    private var isSelectedForDownload: Bool {
+        downloadSelection?.selectedSongIDs.contains(song.id) == true
+    }
+
+    private var canSelectForDownload: Bool {
+        !downloads.contains(songID: song.id)
+            && !downloads.isDownloading(songID: song.id)
+    }
+
     var body: some View {
         HStack(spacing: 4) {
-            Button(action: playOrPause) {
+            Button(action: primaryAction) {
                 HStack(spacing: 12) {
+                    if isSelectingDownloads {
+                        Image(
+                            systemName: isSelectedForDownload
+                                ? "checkmark.circle.fill"
+                                : "circle"
+                        )
+                        .font(.title3)
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(
+                            canSelectForDownload ? .primary : .tertiary
+                        )
+                        .frame(width: 24)
+                        .contentTransition(.symbolEffect(.replace))
+                        .accessibilityHidden(true)
+                    }
+
                     leadingContent
 
                     VStack(alignment: .leading, spacing: 3) {
@@ -74,82 +118,110 @@ private struct PlaylistTrackRow: View {
                 .contentShape(.rect)
             }
             .buttonStyle(.plain)
+            .disabled(isSelectingDownloads && !canSelectForDownload)
+            .accessibilityLabel(primaryActionAccessibilityLabel)
+            .accessibilityValue(primaryActionAccessibilityValue)
 
-            if downloads.isDownloading(songID: song.id) {
-                ProgressView()
-                    .controlSize(.mini)
-                    .accessibilityLabel("正在下载")
-            } else if downloads.contains(songID: song.id) {
-                Image(systemName: "arrow.down.circle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .accessibilityLabel("已下载")
+            if settings.isContentFeatureEnabled(.downloads) {
+                if downloads.isDownloading(songID: song.id) {
+                    ProgressView()
+                        .controlSize(.mini)
+                        .accessibilityLabel("ui.downloads.downloading")
+                } else if downloads.contains(songID: song.id) {
+                    Image(systemName: "arrow.down.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .accessibilityLabel("ui.downloads.downloaded")
+                }
             }
 
-            Menu {
-                if downloads.isDownloading(songID: song.id) {
+            if !isSelectingDownloads {
+                Menu {
                     Button {
-                        downloads.cancel(songID: song.id)
+                        Task { await player.playNext(song) }
                     } label: {
-                        Label("取消下载", systemImage: "xmark.circle")
+                        Label(
+                            "ui.player.play_next",
+                            systemImage:
+                                "text.line.first.and.arrowtriangle.forward"
+                        )
                     }
-                } else if downloads.contains(songID: song.id) {
-                    Button(role: .destructive) {
-                        downloads.remove(songID: song.id)
-                    } label: {
-                        Label("删除下载", systemImage: "trash")
-                    }
-                } else {
-                    Menu {
-                        ForEach(MusicQuality.allCases) { quality in
-                            Button(quality.title) {
-                                downloads.start(song, quality: quality)
+
+                    if settings.isContentFeatureEnabled(.downloads) {
+                        if downloads.isDownloading(songID: song.id) {
+                            Button {
+                                downloads.cancel(songID: song.id)
+                            } label: {
+                                Label("ui.downloads.cancel", systemImage: "xmark.circle")
+                            }
+                        } else if downloads.contains(songID: song.id) {
+                            Button(role: .destructive) {
+                                downloads.remove(songID: song.id)
+                            } label: {
+                                Label("ui.downloads.delete", systemImage: "trash")
+                            }
+                        } else {
+                            Menu {
+                                ForEach(MusicQuality.allCases) { quality in
+                                    Button(quality.title) {
+                                        downloads.start(song, quality: quality)
+                                    }
+                                }
+                            } label: {
+                                Label("ui.downloads.download_song", systemImage: "arrow.down.circle")
                             }
                         }
-                    } label: {
-                        Label("下载歌曲", systemImage: "arrow.down.circle")
                     }
-                }
 
-                Button {
-                    openMusicRoute(.song(song))
-                } label: {
-                    Label("歌曲资料", systemImage: "info.circle")
-                }
+                    Button {
+                        openMusicRoute(.song(song))
+                    } label: {
+                        Label("ui.song.information", systemImage: "info.circle")
+                    }
 
-                Button {
-                    library.toggle(song: song)
-                } label: {
-                    Label(
-                        library.contains(song: song) ? "取消收藏" : "收藏歌曲",
-                        systemImage: library.contains(song: song) ? "heart.slash" : "heart"
-                    )
-                }
+                    Button {
+                        library.toggle(song: song)
+                    } label: {
+                        Label(
+                            library.contains(song: song)
+                                ? L10n.string("ui.song.unlike")
+                                : L10n.string("ui.song.like"),
+                            systemImage: library.contains(song: song) ? "heart.slash" : "heart"
+                        )
+                    }
 
-                Button {
-                    presentedSheet = .comments(song)
-                } label: {
-                    Label("评论", systemImage: "bubble.left.and.bubble.right")
-                }
+                    Button {
+                        presentedSheet = .comments(song)
+                    } label: {
+                        Label("ui.comments.title", systemImage: "bubble.left.and.bubble.right")
+                    }
 
-                Button {
-                    presentedSheet = .addToPlaylist(song)
-                } label: {
-                    Label("添加到歌单", systemImage: "text.badge.plus")
-                }
+                    Button {
+                        presentedSheet = .addToPlaylist(song)
+                    } label: {
+                        Label("ui.playlists.add_to", systemImage: "text.badge.plus")
+                    }
 
-                Menu {
-                    NeteaseShareMenuContent(resource: .song(song))
+                    if let onRemoveSong {
+                        Divider()
+                        Button("ui.playlists.remove_song", systemImage: "minus.circle", role: .destructive) {
+                            onRemoveSong(song)
+                        }
+                    }
+
+                    Menu {
+                        NeteaseShareMenuContent(resource: .song(song))
+                    } label: {
+                        Label("ui.common.share", systemImage: "square.and.arrow.up")
+                    }
                 } label: {
-                    Label("分享", systemImage: "square.and.arrow.up")
+                    Image(systemName: "ellipsis")
+                        .font(.body.weight(.semibold))
+                        .frame(width: 42, height: 44)
+                        .contentShape(.rect)
                 }
-            } label: {
-                Image(systemName: "ellipsis")
-                    .font(.body.weight(.semibold))
-                    .frame(width: 42, height: 44)
-                    .contentShape(.rect)
+                .accessibilityLabel(L10n.format("ui.song.more_actions", song.name))
             }
-            .accessibilityLabel("\(song.name)的更多操作")
         }
         .padding(.leading, 20)
         .padding(.trailing, 8)
@@ -174,7 +246,7 @@ private struct PlaylistTrackRow: View {
         if showsArtwork {
             ArtworkImage(url: song.album?.artworkURL, cornerRadius: 6)
                 .frame(width: 48, height: 48)
-        } else if isCurrentSong {
+        } else if isCurrentSong && !isSelectingDownloads {
             ZStack {
                 Circle()
                     .stroke(Color.primary.opacity(0.60), lineWidth: 1.5)
@@ -188,12 +260,52 @@ private struct PlaylistTrackRow: View {
                 }
             }
             .frame(width: 32, height: 32)
+            .frame(width: 40)
         } else {
-            Text("\(index + 1)")
+            Text(
+                (index + 1).formatted(
+                    .number.locale(L10n.locale)
+                )
+            )
                 .font(.title3)
                 .foregroundStyle(.secondary)
                 .monospacedDigit()
-                .frame(width: 32, alignment: .center)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .frame(width: 40, alignment: .center)
+        }
+    }
+
+    private var primaryActionAccessibilityLabel: String {
+        L10n.format(
+            "ui.accessibility.song_and_artist",
+            song.name,
+            song.artistText
+        )
+    }
+
+    private var primaryActionAccessibilityValue: String {
+        guard isSelectingDownloads else {
+            return isCurrentSong ? L10n.string("ui.player.now_playing") : ""
+        }
+        if !canSelectForDownload {
+            return downloads.contains(songID: song.id)
+                ? L10n.string("ui.downloads.downloaded")
+                : L10n.string("ui.downloads.downloading")
+        }
+        return isSelectedForDownload
+            ? L10n.string("ui.common.selected")
+            : L10n.string("ui.common.not_selected")
+    }
+
+    private func primaryAction() {
+        if isSelectingDownloads {
+            guard canSelectForDownload else { return }
+            withAnimation(.easeInOut(duration: 0.15)) {
+                downloadSelection?.toggleSelection(songID: song.id)
+            }
+        } else {
+            playOrPause()
         }
     }
 
