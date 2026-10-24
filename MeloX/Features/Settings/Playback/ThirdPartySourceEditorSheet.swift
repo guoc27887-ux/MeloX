@@ -1,7 +1,8 @@
+import Foundation
 import SwiftUI
 
 /// 第三方音源添加表单：手动填写（URL 模板 + 密钥 + 可选 JS 脚本），
-/// 或粘贴导入（JSON / 内嵌配置 / @key 注释头 / 宽松 JS 脚本）。
+/// 或粘贴导入（JSON / 内嵌配置 / @key 注释头 / 宽松 JS 脚本 / 裸链接下载后解析）。
 /// 只保存用户自己填入的配置，不内置任何音源与密钥。
 struct ThirdPartySourceEditorSheet: View {
     @Environment(\.dismiss) private var dismiss
@@ -21,6 +22,7 @@ struct ThirdPartySourceEditorSheet: View {
     @State private var script = ""
     @State private var pastedText = ""
     @State private var importError: String?
+    @State private var isImportingLink = false
 
     private var manualCanSave: Bool {
         !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -96,8 +98,16 @@ struct ThirdPartySourceEditorSheet: View {
                         Button("ui.common.done") { saveManual() }
                             .disabled(!manualCanSave)
                     } else {
-                        Button("ui.unblock.add.import_button") { importPasted() }
-                            .disabled(pastedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        Button {
+                            importPasted()
+                        } label: {
+                            if isImportingLink {
+                                ProgressView()
+                            } else {
+                                Text("ui.unblock.add.import_button")
+                            }
+                        }
+                        .disabled(isImportingLink || pastedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
                 }
             }
@@ -142,12 +152,90 @@ struct ThirdPartySourceEditorSheet: View {
     }
 
     private func importPasted() {
+        let trimmed = pastedText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let url = sourceLinkURL(from: trimmed) {
+            importFromLink(url)
+            return
+        }
         do {
             let sources = try ThirdPartySourceImportParser.parse(text: pastedText)
             ThirdPartySourceStore.shared.addSources(sources)
             dismiss()
         } catch {
             importError = error.localizedDescription
+        }
+    }
+
+    /// 裸链接识别：trim 后以 http(s):// 开头、中间不含任何空白或换行，
+    /// 且能解析为带 host 的 http(s) URL。带前后文的文本不算链接，走原有文本解析。
+    private func sourceLinkURL(from trimmed: String) -> URL? {
+        guard trimmed.hasPrefix("http://") || trimmed.hasPrefix("https://"),
+              trimmed.rangeOfCharacter(from: .whitespacesAndNewlines) == nil,
+              let url = URL(string: trimmed),
+              let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https",
+              url.host != nil else { return nil }
+        return url
+    }
+
+    /// 链接导入：先下载（15 秒超时），再走现有文本解析入库。
+    /// 下载类问题报“链接下载失败”，内容类问题报“内容解析失败”，共用现有 importError 弹窗。
+    private func importFromLink(_ url: URL) {
+        isImportingLink = true
+        importError = nil
+        Task {
+            // 第一步：下载。网络错误（含超时）、非 2xx、空内容都算下载失败。
+            let downloadedText: String
+            do {
+                var request = URLRequest(url: url)
+                request.timeoutInterval = 15
+                let (data, response) = try await URLSession.shared.data(for: request)
+                guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+                    let status = (response as? HTTPURLResponse)?.statusCode ?? -1
+                    await MainActor.run {
+                        isImportingLink = false
+                        importError = "链接下载失败：HTTP 状态码 \(status)"
+                    }
+                    return
+                }
+                guard !data.isEmpty else {
+                    await MainActor.run {
+                        isImportingLink = false
+                        importError = "链接下载失败：返回内容为空"
+                    }
+                    return
+                }
+                guard let text = String(data: data, encoding: .utf8)
+                        ?? String(data: data, encoding: .utf16)
+                        ?? String(data: data, encoding: .unicode) else {
+                    await MainActor.run {
+                        isImportingLink = false
+                        importError = "内容解析失败：内容不是有效的文本"
+                    }
+                    return
+                }
+                downloadedText = text
+            } catch {
+                await MainActor.run {
+                    isImportingLink = false
+                    importError = "链接下载失败：\(error.localizedDescription)"
+                }
+                return
+            }
+            // 第二步：解析。解析器抛出的错误（unsupported / noValidSource 等）都算内容解析失败。
+            do {
+                let sources = try ThirdPartySourceImportParser.parse(text: downloadedText)
+                await MainActor.run {
+                    isImportingLink = false
+                    ThirdPartySourceStore.shared.addSources(sources)
+                    dismiss()
+                }
+            } catch {
+                await MainActor.run {
+                    isImportingLink = false
+                    importError = "内容解析失败：\(error.localizedDescription)"
+                }
+            }
         }
     }
 }
